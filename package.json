@@ -5,7 +5,6 @@
     "main": "index.js",
     "types": "index.d.ts",
     "scripts": {
-        "build": "babel src --out-dir lib --copy-files",
         "prepare": "npm run build",
         "test": "jest",
         "lint": "eslint src/",
@@ -63,7 +62,7 @@
         "metro-react-native-babel-preset": "^0.76.0"
     },
     "files": [
-        "lib/",
+        "src/",
         "assets/",
         "index.js",
         "index.d.ts",
