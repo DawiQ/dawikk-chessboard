@@ -1,15 +1,14 @@
-// enhanced/common/dawikk-chessboard/PromotionOverlay.js - Ultra-zoptymalizowana wersja
-
 import React, { memo, useMemo, useCallback } from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-// *** ZOPTYMALIZOWANE IMPORTY THEME ***
-import { 
-  useThemeColors, 
-  useTextColors, 
-  useBackgroundColors 
-} from '../themeContext';
+// *** DEFAULT COLORS - for standalone usage ***
+const DEFAULT_COLORS = {
+  borderPrimary: '#E5E7EB',
+  cardBackground: '#FFFFFF',
+  titleText: '#111827',
+  subtitleText: '#6B7280'
+};
 
 // *** STAŁE DANE FIGUR (nie zmieniają się nigdy) ***
 const PIECE_ICONS = {
@@ -69,21 +68,20 @@ const PromotionOption = memo(({
 
 PromotionOption.displayName = 'PromotionOption';
 
-// *** GŁÓWNY KOMPONENT - Ultra-zoptymalizowany ***
-const PromotionOverlay = memo(({ onSelect, color }) => {
-  // *** PRECYZYJNE SELEKTORY THEME - tylko potrzebne kolory ***
-  const colors = useThemeColors((theme) => ({
-    borderPrimary: theme.borderPrimary
-  }));
+// *** GŁÓWNY KOMPONENT - STANDALONE VERSION ***
+const PromotionOverlay = memo(({ 
+  onSelect, 
+  color,
+  // 🎯 NEW PROPS - Accept colors directly
+  colors = null,
+  textColors = null,
+  backgroundColors = null
+}) => {
   
-  const textColors = useTextColors((theme) => ({
-    titleText: theme.titleText,
-    subtitleText: theme.subtitleText
-  }));
-  
-  const backgroundColors = useBackgroundColors((theme) => ({
-    cardBackground: theme.cardBackground
-  }));
+  // 🎯 USE PROVIDED COLORS OR DEFAULTS
+  const activeColors = colors || DEFAULT_COLORS;
+  const activeTextColors = textColors || DEFAULT_COLORS;
+  const activeBackgroundColors = backgroundColors || DEFAULT_COLORS;
 
   // *** MEMOIZED OVERLAY BACKGROUND ***
   const overlayBackground = useMemo(() => 'rgba(0, 0, 0, 0.8)', []);
@@ -92,22 +90,22 @@ const PromotionOverlay = memo(({ onSelect, color }) => {
   const promotionCardStyle = useMemo(() => [
     styles.promotionCard,
     { 
-      backgroundColor: backgroundColors.cardBackground,
-      borderColor: colors.borderPrimary,
+      backgroundColor: activeBackgroundColors.cardBackground,
+      borderColor: activeColors.borderPrimary,
       borderWidth: 1,
     }
-  ], [backgroundColors.cardBackground, colors.borderPrimary]);
+  ], [activeBackgroundColors.cardBackground, activeColors.borderPrimary]);
 
   // *** MEMOIZED TEXT STYLES ***
   const titleTextStyle = useMemo(() => [
     styles.titleText, 
-    { color: textColors.titleText }
-  ], [textColors.titleText]);
+    { color: activeTextColors.titleText }
+  ], [activeTextColors.titleText]);
 
   const instructionTextStyle = useMemo(() => [
     styles.instructionText, 
-    { color: textColors.subtitleText }
-  ], [textColors.subtitleText]);
+    { color: activeTextColors.subtitleText }
+  ], [activeTextColors.subtitleText]);
 
   // *** RENDER OPTIONS - Memoized ***
   const renderOptions = useMemo(() => {
@@ -121,11 +119,11 @@ const PromotionOverlay = memo(({ onSelect, color }) => {
           pieceInfo={pieceInfo}
           color={color}
           onSelect={onSelect}
-          borderColor={colors.borderPrimary}
+          borderColor={activeColors.borderPrimary}
         />
       );
     });
-  }, [color, onSelect, colors.borderPrimary]);
+  }, [color, onSelect, activeColors.borderPrimary]);
 
   return (
     <View 
@@ -148,10 +146,12 @@ const PromotionOverlay = memo(({ onSelect, color }) => {
   );
 }, (prevProps, nextProps) => {
   // *** CUSTOM EQUALITY FUNCTION ***
-  // Ten komponent renderuje się tylko gdy zmieni się color lub onSelect
   return (
     prevProps.color === nextProps.color &&
-    prevProps.onSelect === nextProps.onSelect
+    prevProps.onSelect === nextProps.onSelect &&
+    prevProps.colors === nextProps.colors &&
+    prevProps.textColors === nextProps.textColors &&
+    prevProps.backgroundColors === nextProps.backgroundColors
   );
 });
 
@@ -222,39 +222,4 @@ const styles = StyleSheet.create({
 
 PromotionOverlay.displayName = 'PromotionOverlay';
 
-// *** PERFORMANCE UTILITIES ***
-export const PromotionOverlayPure = PromotionOverlay;
-
-// *** HOC WRAPPER z dodatkowymi optymalizacjami ***
-const OptimizedPromotionOverlay = memo((props) => {
-  // Dodatkowa walidacja - render tylko jeśli props są prawidłowe
-  if (!props.onSelect || !props.color) {
-    return null;
-  }
-
-  // Sprawdź czy color jest prawidłowy
-  if (props.color !== 'w' && props.color !== 'b') {
-    console.warn('PromotionOverlay: Invalid color prop:', props.color);
-    return null;
-  }
-
-  return <PromotionOverlay {...props} />;
-});
-
-OptimizedPromotionOverlay.displayName = 'OptimizedPromotionOverlay';
-
-// *** DEV ONLY - Performance monitoring ***
-if (__DEV__) {
-  let promotionRenderCount = 0;
-  const originalRender = PromotionOverlay.type?.render || PromotionOverlay.render;
-  
-  if (originalRender) {
-    PromotionOverlay.render = function(...args) {
-      promotionRenderCount++;
-      console.log(`PromotionOverlay render #${promotionRenderCount}`);
-      return originalRender.call(this, ...args);
-    };
-  }
-}
-
-export default OptimizedPromotionOverlay;
+export default PromotionOverlay;

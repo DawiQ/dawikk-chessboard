@@ -1,29 +1,17 @@
-// dawikk-chessboard - Main entry point
+// ============================================================================
+// MAIN COMPONENTS - Standalone, work with props
+// ============================================================================
 export { default as Chessboard } from './src/components/Chessboard';
 export { default as Square } from './src/components/Square';
 export { default as Arrow } from './src/components/Arrow';
 export { default as PromotionOverlay } from './src/components/PromotionOverlay';
 export { default as BoardLoadingSquare } from './src/components/BoardLoadingSquare';
 
-// Theme exports - comprehensive system
-export { 
-  ThemeProvider,
-  useBoardTheme,
-  useTextColors,
-  useThemeColors,
-  useBackgroundColors,
-  useQuickStartColors,
-  useThemeActions,
-  useTheme,
-  useThemeName,
-  useAppThemeName,
-  usePredefinedTheme,
-  createBoardTheme,
-  isDarkTheme,
-  useThemeDebug
-} from './src/themeContext';
+// ============================================================================
+// THEME UTILITIES - Simplified, no complex context
+// ============================================================================
 
-// Board theme exports
+// Basic board themes
 export { 
   chessboardThemes,
   getChessboardTheme,
@@ -34,7 +22,9 @@ export {
   getThemeAccessibility
 } from './src/chessboardColors';
 
-// Cache utility functions (placeholder implementations)
+// ============================================================================
+// UTILITY FUNCTIONS - Lightweight
+// ============================================================================
 export const clearArrowCache = () => {
   if (__DEV__) {
     console.log('Arrow cache cleared');
@@ -47,7 +37,9 @@ export const clearSquareCache = () => {
   }
 };
 
-// Default theme configurations for easy access
+// ============================================================================
+// PRE-BUILT THEMES - Easy to use with props
+// ============================================================================
 export const DefaultThemes = {
   classic: {
     light: '#F0D9B5',
@@ -123,7 +115,9 @@ export const DefaultThemes = {
   }
 };
 
-// Quick theme presets for common use cases
+// ============================================================================
+// QUICK THEME PRESETS - Easy access
+// ============================================================================
 export const QuickThemes = {
   // Professional tournament look
   tournament: DefaultThemes.classic,
@@ -144,7 +138,9 @@ export const QuickThemes = {
   royal: DefaultThemes.purple
 };
 
-// Theme utilities
+// ============================================================================
+// THEME UTILITIES - Simplified versions
+// ============================================================================
 export const ThemeUtils = {
   // Get theme by category
   getThemesByCategory: (category) => {
@@ -180,5 +176,29 @@ export const ThemeUtils = {
       const hasLength = theme[key]?.length > 0;
       return hasKey && isString && hasLength;
     });
+  },
+  
+  // Create theme from base
+  createThemeFromBase: (baseThemeName, overrides = {}) => {
+    const baseTheme = DefaultThemes[baseThemeName] || DefaultThemes.green;
+    return { ...baseTheme, ...overrides };
+  },
+  
+  // Quick theme switcher
+  getThemeFor: (situation) => {
+    const situationThemes = {
+      'puzzle': DefaultThemes.green,
+      'analysis': DefaultThemes.blue, 
+      'tournament': DefaultThemes.classic,
+      'night': DefaultThemes.dark,
+      'beginner': DefaultThemes.wood,
+      'advanced': DefaultThemes.purple
+    };
+    return situationThemes[situation] || DefaultThemes.green;
   }
 };
+
+// ============================================================================
+// DEFAULT EXPORT - Main Chessboard component
+// ============================================================================
+export { default } from './src/components/Chessboard';

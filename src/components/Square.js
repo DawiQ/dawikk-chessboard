@@ -1,11 +1,7 @@
-// enhanced/common/dawikk-chessboard-fresh/Square.js - PURE FLEX LAYOUT VERSION
-
 import React, { memo, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, Image, Pressable, Animated } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
-import { useBoardTheme } from '../themeContext';
 
 // *** PIECE IMAGES - Requires assets folder ***
 const PIECES = {
@@ -23,7 +19,21 @@ const PIECES = {
   wk: require('../../assets/wk.png'),
 };
 
-// *** ANIMATED HINT COMPONENT - Flex Version ***
+// *** DEFAULT BOARD THEME - fallback when no theme provided ***
+const DEFAULT_BOARD_THEME = {
+  light: '#EEEED2',
+  dark: '#769656',
+  highlighted: '#ffeb3b',
+  moveFrom: 'rgba(118, 150, 86, 1)',
+  moveTo: 'rgba(81, 107, 56, 1)',
+  dot: 'rgba(0, 0, 0, 0.5)',
+  hintBorder: '#FF7F50',
+  hintGlow: 'rgba(255, 127, 80, 0.7)',
+  hintLightBg: '#FFEFD5',
+  hintDarkBg: '#FF8C69'
+};
+
+// *** ANIMATED HINT COMPONENT - Accept boardTheme as prop ***
 const AnimatedHint = memo(({ boardTheme, isBlack }) => {
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -89,7 +99,7 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
   const borderColor = pulseAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [
-      boardTheme?.hintBorder || '#FF6B35',
+      boardTheme?.hintBorder || DEFAULT_BOARD_THEME.hintBorder,
       '#FFFFFF'
     ],
   });
@@ -110,7 +120,7 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
         style={[
           styles.overlay,
           {
-            backgroundColor: boardTheme?.hintGlow || 'rgba(255, 107, 53, 0.4)',
+            backgroundColor: boardTheme?.hintGlow || DEFAULT_BOARD_THEME.hintGlow,
             opacity: glowOpacity,
             borderRadius: 8,
             zIndex: 8,
@@ -122,7 +132,7 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
         style={[
           styles.overlay,
           {
-            backgroundColor: boardTheme?.hintGlow || 'rgba(255, 107, 53, 0.3)',
+            backgroundColor: boardTheme?.hintGlow || DEFAULT_BOARD_THEME.hintGlow,
             opacity: glowOpacity,
             borderRadius: 6,
             zIndex: 9,
@@ -163,7 +173,7 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
         <MaterialCommunityIcons 
           name="lightbulb" 
           size={16} 
-          color={boardTheme?.hintBorder || '#FF6B35'}
+          color={boardTheme?.hintBorder || DEFAULT_BOARD_THEME.hintBorder}
         />
       </Animated.View>
     </>
@@ -192,7 +202,7 @@ const ReadonlyPieceComponent = memo(({ piece }) => {
 
 ReadonlyPieceComponent.displayName = 'ReadonlyPieceComponent';
 
-// *** PIECE COMPONENT WITH IMAGES - Flex Version ***
+// *** PIECE COMPONENT WITH IMAGES ***
 const PieceComponent = memo(({ piece, onGestureEvent, onHandlerStateChange, onPress }) => {
   const pieceType = `${piece.color}${piece.type.toLowerCase()}`;
   const pieceSource = PIECES[pieceType];
@@ -218,7 +228,7 @@ const PieceComponent = memo(({ piece, onGestureEvent, onHandlerStateChange, onPr
 
 PieceComponent.displayName = 'PieceComponent';
 
-// *** MAIN SQUARE COMPONENT - Pure Flex Version ***
+// *** MAIN SQUARE COMPONENT - STANDALONE VERSION ***
 const Square = memo(({ 
   piece, 
   row, 
@@ -232,26 +242,28 @@ const Square = memo(({
   isLastMoveFrom, 
   isLastMoveTo,
   isHintSquare = false,
-  currentSquareSize, // Used only for gesture calculations, not for styling
-  readonly = false  // New prop for readonly mode
+  currentSquareSize,
+  readonly = false,
+  // 🎯 NEW PROPS - Accept theme directly
+  boardTheme = null // Accept boardTheme as prop instead of using context
 }) => {
-  const { boardTheme } = useBoardTheme();
+  
+  // 🎯 USE PROP OR DEFAULT THEME
+  const activeTheme = boardTheme || DEFAULT_BOARD_THEME;
 
   const backgroundColor = useMemo(() => {
-    if (!boardTheme) return '#f0d9b5';
-    
     const isBlack = (row + col) % 2 !== 0;
-    const normalColor = isBlack ? boardTheme.dark : boardTheme.light;
+    const normalColor = isBlack ? activeTheme.dark : activeTheme.light;
     
     if (isHintSquare) {
-      if (boardTheme.hintLightBg && boardTheme.hintDarkBg) {
-        return isBlack ? boardTheme.hintDarkBg : boardTheme.hintLightBg;
+      if (activeTheme.hintLightBg && activeTheme.hintDarkBg) {
+        return isBlack ? activeTheme.hintDarkBg : activeTheme.hintLightBg;
       }
       return isBlack ? '#FF8C69' : '#FFEFD5';
     }
     
     return normalColor;
-  }, [row, col, boardTheme, isHintSquare]);
+  }, [row, col, activeTheme, isHintSquare]);
 
   const overlayStyles = useMemo(() => {
     // Skip complex calculations in readonly mode if not needed
@@ -266,62 +278,34 @@ const Square = memo(({
       dot: null,
     };
 
-    if (!boardTheme) {
-      if (isHighlighted && !readonly) {
-        styles.highlight = {
-          backgroundColor: 'rgba(255, 255, 0, 0.6)',
-        };
-      }
-      if (isLastMoveFrom) {
-        styles.lastMoveFrom = {
-          backgroundColor: 'rgba(255, 255, 0, 0.7)',
-          opacity: 0.7,
-        };
-      }
-      if (isLastMoveTo) {
-        styles.lastMoveTo = {
-          backgroundColor: 'rgba(255, 255, 0, 0.4)',
-          opacity: 0.4,
-        };
-      }
-      if (isMovePossible && !readonly) {
-        styles.dot = {
-          width: '30%',
-          height: '30%',
-          borderRadius: 100,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        };
-      }
-    } else {
-      if (isHighlighted && !readonly) {
-        styles.highlight = {
-          backgroundColor: boardTheme.highlighted,
-        };
-      }
-      if (isLastMoveFrom) {
-        styles.lastMoveFrom = {
-          backgroundColor: boardTheme.moveFrom,
-          opacity: 0.7,
-        };
-      }
-      if (isLastMoveTo) {
-        styles.lastMoveTo = {
-          backgroundColor: boardTheme.moveTo,
-          opacity: 0.4,
-        };
-      }
-      if (isMovePossible && !readonly) {
-        styles.dot = {
-          width: '30%',
-          height: '30%',
-          borderRadius: 100,
-          backgroundColor: boardTheme.dot || 'rgba(0, 0, 0, 0.5)',
-        };
-      }
+    if (isHighlighted && !readonly) {
+      styles.highlight = {
+        backgroundColor: activeTheme.highlighted,
+      };
+    }
+    if (isLastMoveFrom) {
+      styles.lastMoveFrom = {
+        backgroundColor: activeTheme.moveFrom,
+        opacity: 0.7,
+      };
+    }
+    if (isLastMoveTo) {
+      styles.lastMoveTo = {
+        backgroundColor: activeTheme.moveTo,
+        opacity: 0.4,
+      };
+    }
+    if (isMovePossible && !readonly) {
+      styles.dot = {
+        width: '30%',
+        height: '30%',
+        borderRadius: 100,
+        backgroundColor: activeTheme.dot || 'rgba(0, 0, 0, 0.5)',
+      };
     }
 
     return styles;
-  }, [boardTheme, isHighlighted, isLastMoveFrom, isLastMoveTo, isMovePossible, readonly]);
+  }, [activeTheme, isHighlighted, isLastMoveFrom, isLastMoveTo, isMovePossible, readonly]);
 
   const handlePress = useCallback(() => {
     if (!readonly) {
@@ -375,7 +359,7 @@ const Square = memo(({
       
       {isHintSquare && (
         <AnimatedHint 
-          boardTheme={boardTheme} 
+          boardTheme={activeTheme} 
           isBlack={isBlack}
         />
       )}
@@ -390,7 +374,7 @@ const Square = memo(({
 }, (prevProps, nextProps) => {
   const essentialProps = [
     'isHighlighted', 'isMovePossible', 'isLastMoveFrom', 'isLastMoveTo',
-    'isHintSquare', 'row', 'col', 'currentSquareSize', 'readonly'
+    'isHintSquare', 'row', 'col', 'currentSquareSize', 'readonly', 'boardTheme'
   ];
 
   for (const prop of essentialProps) {
@@ -421,7 +405,7 @@ const Square = memo(({
 
 Square.displayName = 'Square';
 
-// *** PURE FLEX STYLES ***
+// *** STYLES REMAIN THE SAME ***
 const styles = StyleSheet.create({
   square: {
     flex: 1,

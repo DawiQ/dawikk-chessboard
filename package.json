@@ -1,7 +1,7 @@
 {
     "name": "dawikk-chessboard",
-    "version": "0.1.1",
-    "description": "A highly optimized, feature-rich React Native chessboard component with gesture support, animations, and customizable themes",
+    "version": "0.1.2",
+    "description": "A highly optimized, feature-rich React Native chessboard component with gesture support, animations, customizable themes, and standalone mode support",
     "main": "index.js",
     "types": "index.d.ts",
     "scripts": {
@@ -15,7 +15,12 @@
         "board-game",
         "gestures",
         "drag-drop",
-        "animations"
+        "animations",
+        "standalone",
+        "themes",
+        "customizable",
+        "educational",
+        "puzzles"
     ],
     "author": {
         "name": "Dawid Wrzesinski (Dawikk)",
@@ -43,7 +48,7 @@
     },
     "peerDependenciesMeta": {
         "@expo/vector-icons": {
-        "optional": true
+            "optional": true
         }
     },
     "devDependencies": {
@@ -64,9 +69,15 @@
         "index.js",
         "index.d.ts",
         "README.md",
-        "LICENSE"
+        "LICENSE",
+        "CHANGELOG.md"
     ],
     "engines": {
         "node": ">=14.0.0"
+    },
+    "config": {
+        "react-native": {
+            "assets": ["./assets/"]
+        }
     }
 }

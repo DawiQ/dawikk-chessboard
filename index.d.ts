@@ -1,4 +1,3 @@
-// Type definitions for dawikk-chessboard
 import { Component, ReactNode } from 'react';
 import { ViewStyle } from 'react-native';
 
@@ -72,7 +71,7 @@ export interface ArrowConfig {
 }
 
 // ============================================================================
-// COMPONENT PROPS
+// UPDATED COMPONENT PROPS - With standalone support
 // ============================================================================
 
 export interface ChessboardProps {
@@ -86,6 +85,14 @@ export interface ChessboardProps {
   expectedMove?: string;
   arrows?: ArrowConfig[];
   isDarkTheme?: boolean;
+  showArrows?: boolean;
+  showCoordinates?: boolean;
+  readonly?: boolean;
+  
+  // 🎯 NEW STANDALONE PROPS
+  boardTheme?: BoardTheme | null;
+  textColors?: Partial<TextColors> | null;
+  colors?: Partial<ThemeColors> | null;
 }
 
 export interface ChessboardRef {
@@ -111,6 +118,11 @@ export interface SquareProps {
   isLastMoveTo?: boolean;
   isHintSquare?: boolean;
   perspective?: 'white' | 'black';
+  currentSquareSize?: number;
+  readonly?: boolean;
+  
+  // 🎯 NEW STANDALONE PROPS
+  boardTheme?: BoardTheme | null;
 }
 
 export interface ArrowProps {
@@ -127,11 +139,15 @@ export interface ArrowProps {
 export interface PromotionOverlayProps {
   onSelect: (piece: string) => void;
   color: 'w' | 'b';
+  
+  // 🎯 NEW STANDALONE PROPS
+  colors?: Partial<ThemeColors> | null;
+  textColors?: Partial<TextColors> | null;
+  backgroundColors?: Partial<BackgroundColors> | null;
 }
 
 export interface BoardLoadingSquareProps {
   isCenter: boolean;
-  squareSize: number;
   baseColor: string;
   animationDelay?: number;
   isDarkTheme?: boolean;
@@ -167,7 +183,7 @@ export interface ThemeAccessibility {
 }
 
 // ============================================================================
-// COMPONENTS
+// COMPONENTS - Updated with new props
 // ============================================================================
 
 export class Chessboard extends Component<ChessboardProps> {
@@ -182,12 +198,12 @@ export declare const PromotionOverlay: React.ComponentType<PromotionOverlayProps
 export declare const BoardLoadingSquare: React.ComponentType<BoardLoadingSquareProps>;
 
 // ============================================================================
-// THEME PROVIDER AND HOOKS
+// THEME PROVIDER AND HOOKS - Optional for standalone usage
 // ============================================================================
 
 export declare const ThemeProvider: React.ComponentType<ThemeProviderProps>;
 
-// Main theme hooks
+// Main theme hooks (optional - components work without these)
 export declare function useThemeColors<T = ThemeColors>(selector?: (colors: ThemeColors) => T): T;
 export declare function useTextColors(): TextColors;
 export declare function useBackgroundColors<T = BackgroundColors>(selector?: (colors: BackgroundColors) => T): T;
@@ -227,7 +243,7 @@ export declare function useThemeDebug(): {
 };
 
 // ============================================================================
-// THEME UTILITIES
+// THEME UTILITIES - Enhanced for standalone usage
 // ============================================================================
 
 export declare function createBoardTheme(theme?: Partial<BoardTheme>): BoardTheme;
@@ -245,7 +261,7 @@ export declare function clearArrowCache(): void;
 export declare function clearSquareCache(): void;
 
 // ============================================================================
-// THEME COLLECTIONS
+// THEME COLLECTIONS - Enhanced
 // ============================================================================
 
 export declare const chessboardThemes: Record<string, BoardTheme>;
@@ -274,14 +290,17 @@ export declare const themeCategories: {
   special: string[];
 };
 
+// 🎯 ENHANCED THEME UTILS
 export declare const ThemeUtils: {
   getThemesByCategory: (category: string) => string[];
   getContrastingColor: (backgroundColor: string) => string;
   validateTheme: (theme: any) => boolean;
+  createThemeFromBase: (baseThemeName: string, overrides?: Partial<BoardTheme>) => BoardTheme;
+  getThemeFor: (situation: 'puzzle' | 'analysis' | 'tournament' | 'night' | 'beginner' | 'advanced') => BoardTheme;
 };
 
 // ============================================================================
-// DEFAULT EXPORT
+// DEFAULT EXPORT - Main Chessboard component
 // ============================================================================
 
 export default Chessboard;

@@ -1,5 +1,3 @@
-// enhanced/common/dawikk-chessboard-fresh/Chessboard.js - PURE FLEX LAYOUT VERSION
-
 import React, { useState, useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
 import { 
   View, 
@@ -15,13 +13,25 @@ import PromotionOverlay from './PromotionOverlay';
 import BoardLoadingSquare from './BoardLoadingSquare';
 import Arrow from './Arrow';
 
-import { 
-  useBoardTheme, 
-  useTextColors,
-  useThemeColors
-} from '../themeContext';
+// *** DEFAULT THEMES - for standalone usage ***
+const DEFAULT_BOARD_THEME = {
+  light: '#EEEED2',
+  dark: '#769656',
+  highlighted: '#ffeb3b',
+  moveFrom: 'rgba(118, 150, 86, 1)',
+  moveTo: 'rgba(81, 107, 56, 1)',
+  dot: 'rgba(0, 0, 0, 0.5)',
+  hintBorder: '#FF7F50',
+  hintGlow: 'rgba(255, 127, 80, 0.7)',
+  hintLightBg: '#FFEFD5',
+  hintDarkBg: '#FF8C69'
+};
 
-// *** LOADING BOARD ROW COMPONENT - Flex Version ***
+const DEFAULT_TEXT_COLORS = {
+  subtitleText: '#6B7280'
+};
+
+// *** LOADING BOARD ROW COMPONENT ***
 const LoadingBoardRow = React.memo(({ 
   rowIndex, 
   perspective, 
@@ -80,7 +90,7 @@ const LoadingBoardRow = React.memo(({
 
 LoadingBoardRow.displayName = 'LoadingBoardRow';
 
-// *** READONLY BOARD ROW COMPONENT - Optimized for performance ***
+// *** READONLY BOARD ROW COMPONENT ***
 const ReadonlyBoardRow = React.memo(({ 
   row, 
   rowIndex, 
@@ -88,7 +98,8 @@ const ReadonlyBoardRow = React.memo(({
   lastMoveTo, 
   perspective, 
   hintSquare,
-  currentSquareSize
+  currentSquareSize,
+  boardTheme // 🎯 NEW PROP
 }) => {
   return (
     <View style={styles.boardRow}>
@@ -115,6 +126,7 @@ const ReadonlyBoardRow = React.memo(({
             perspective={perspective}
             currentSquareSize={currentSquareSize}
             readonly={true}
+            boardTheme={boardTheme} // 🎯 PASS THEME AS PROP
           />
         );
       })}
@@ -124,7 +136,7 @@ const ReadonlyBoardRow = React.memo(({
 
 ReadonlyBoardRow.displayName = 'ReadonlyBoardRow';
 
-// *** NORMAL BOARD ROW COMPONENT - Flex Version ***
+// *** NORMAL BOARD ROW COMPONENT ***
 const BoardRow = React.memo(({ 
   row, 
   rowIndex, 
@@ -137,7 +149,8 @@ const BoardRow = React.memo(({
   lastMoveTo, 
   perspective, 
   hintSquare,
-  currentSquareSize
+  currentSquareSize,
+  boardTheme // 🎯 NEW PROP
 }) => {
   return (
     <View style={styles.boardRow}>
@@ -163,6 +176,7 @@ const BoardRow = React.memo(({
             onHandlerStateChange={onHandlerStateChange(squareNotation)}
             perspective={perspective}
             currentSquareSize={currentSquareSize}
+            boardTheme={boardTheme} // 🎯 PASS THEME AS PROP
           />
         );
       })}
@@ -172,7 +186,7 @@ const BoardRow = React.memo(({
 
 BoardRow.displayName = 'BoardRow';
 
-// *** MAIN COMPONENT WITH PURE FLEX LAYOUT ***
+// *** MAIN CHESSBOARD COMPONENT - STANDALONE VERSION ***
 const SmoothChessboard = forwardRef((props, ref) => {
   const {
     fen: initialFen,
@@ -184,14 +198,19 @@ const SmoothChessboard = forwardRef((props, ref) => {
     bestMove,
     arrows = [],
     expectedMove,
-    textColors,
-    boardTheme,
-    colors,
+    // 🎯 NEW PROPS - Accept theme and colors directly
+    boardTheme = null,
+    textColors = null,
+    colors = null,
     isDarkTheme = false,
     showArrows = true,
     showCoordinates = true,
-    readonly = false  // New prop for view-only mode
+    readonly = false
   } = props;
+
+  // 🎯 USE PROVIDED THEME OR DEFAULTS
+  const activeBoardTheme = boardTheme || DEFAULT_BOARD_THEME;
+  const activeTextColors = textColors || DEFAULT_TEXT_COLORS;
 
   // *** STATE ***
   const [chess, setChess] = useState(() => new Chess(initialFen));
@@ -492,7 +511,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
                   <View style={styles.rankLabels}>
                     {ranks.map((rank, index) => (
                       <View key={`rank-${index}`} style={styles.rankLabelItem}>
-                        <Text style={[styles.coordinateText, { color: textColors.subtitleText }]}>
+                        <Text style={[styles.coordinateText, { color: activeTextColors.subtitleText }]}>
                           {rank}
                         </Text>
                       </View>
@@ -516,7 +535,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           key={`loading-row-${rowIndex}`}
                           rowIndex={rowIndex}
                           perspective={perspective}
-                          boardTheme={boardTheme}
+                          boardTheme={activeBoardTheme}
                           isDarkTheme={isDarkTheme}
                         />
                       ))
@@ -532,6 +551,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           hintSquare={hintSquare}
                           perspective={perspective}
                           currentSquareSize={currentSquareSize}
+                          boardTheme={activeBoardTheme} // 🎯 PASS THEME
                         />
                       ))
                     ) : (
@@ -551,6 +571,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           hintSquare={hintSquare}
                           perspective={perspective}
                           currentSquareSize={currentSquareSize}
+                          boardTheme={activeBoardTheme} // 🎯 PASS THEME
                         />
                       ))
                     )}
@@ -599,7 +620,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
                 <View style={styles.fileLabels}>
                   {files.map((file, index) => (
                     <View key={`file-${index}`} style={styles.fileLabelItem}>
-                      <Text style={[styles.coordinateText, { color: textColors.subtitleText }]}>
+                      <Text style={[styles.coordinateText, { color: activeTextColors.subtitleText }]}>
                         {file}
                       </Text>
                     </View>
@@ -615,30 +636,36 @@ const SmoothChessboard = forwardRef((props, ref) => {
         <PromotionOverlay 
           onSelect={handlePromotionSelect} 
           color={chess.turn()}
+          colors={colors}
+          textColors={activeTextColors}
+          backgroundColors={{ cardBackground: colors?.cardBackground || '#FFFFFF' }}
         />
       )}
     </GestureHandlerRootView>
   );
 });
 
-// *** WRAPPER COMPONENT ***
+// *** SIMPLIFIED WRAPPER - No more complex theme context dependency ***
 const SmoothChessboardWrapper = React.memo(forwardRef((props, ref) => {
-  const { boardTheme } = useBoardTheme();
-  const textColors = useTextColors();
-  
-  const colors = useThemeColors((theme) => ({
-    background: theme?.background,
-    titleText: theme?.titleText
-  }));
+  // If no theme is provided, use default green theme
+  const defaultBoardTheme = {
+    light: '#EEEED2',
+    dark: '#769656',
+    highlighted: '#ffeb3b',
+    moveFrom: 'rgba(118, 150, 86, 1)',
+    moveTo: 'rgba(81, 107, 56, 1)',
+    dot: 'rgba(0, 0, 0, 0.5)',
+    hintBorder: '#FF7F50',
+    hintGlow: 'rgba(255, 127, 80, 0.7)',
+    hintLightBg: '#FFEFD5',
+    hintDarkBg: '#FF8C69'
+  };
 
   const memoizedProps = useMemo(() => ({
     ...props,
-    boardTheme,
-    colors,
-    textColors: {
-      subtitleText: textColors.subtitleText
-    }
-  }), [props, boardTheme, colors, textColors.subtitleText]);
+    boardTheme: props.boardTheme || defaultBoardTheme,
+    textColors: props.textColors || DEFAULT_TEXT_COLORS
+  }), [props]);
 
   return (
     <SmoothChessboard 
@@ -648,9 +675,8 @@ const SmoothChessboardWrapper = React.memo(forwardRef((props, ref) => {
   );
 }));
 
-SmoothChessboardWrapper.displayName = 'SmoothChessboard';
+SmoothChessboardWrapper.displayName = 'Chessboard';
 
-// *** PURE FLEX LAYOUT STYLES ***
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -728,5 +754,4 @@ const styles = StyleSheet.create({
   },
 });
 
-SmoothChessboardWrapper.displayName = 'Chessboard';
 export default SmoothChessboardWrapper;
