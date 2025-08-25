@@ -213,7 +213,14 @@ const SmoothChessboard = forwardRef((props, ref) => {
   const activeTextColors = textColors || DEFAULT_TEXT_COLORS;
 
   // *** STATE ***
-  const [chess, setChess] = useState(() => new Chess(initialFen));
+  const [chess, setChess] = useState(() => {
+    const initialChess = new Chess(initialFen);
+    console.log('🎲 [Chessboard] Initial chess created:', {
+      fen: initialChess.fen().split(' ')[0],
+      turn: initialChess.turn()
+    });
+    return initialChess;
+  });
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [validMoves, setValidMoves] = useState([]);
   const [lastMoveFrom, setLastMoveFrom] = useState(propLastMoveFrom || null);
@@ -230,6 +237,13 @@ const SmoothChessboard = forwardRef((props, ref) => {
   const moveDebounceDelay = 150;
   const boardRef = useRef(null);
   const prevFenRef = useRef(initialFen);
+  // 🔧 DODANE: Ref dla aktualnego stanu chess
+  const chessRef = useRef();
+  
+  // 🔧 Ustaw chess do ref po utworzeniu
+  if (!chessRef.current) {
+    chessRef.current = chess;
+  }
 
   // Calculate square size based on board dimensions
   const currentSquareSize = useMemo(() => {
@@ -244,19 +258,37 @@ const SmoothChessboard = forwardRef((props, ref) => {
     setBoardDimensions({ width, height });
   }, []);
 
-  // *** EFFECT TO UPDATE CHESS POSITION ***
+  // *** EFFECT TO UPDATE CHESS POSITION - WITH DETAILED LOGS ***
   useEffect(() => {
+    console.log('🔍 [Chessboard] useEffect FEN check:', {
+      initialFen: initialFen,
+      prevFen: prevFenRef.current,
+      changed: initialFen !== prevFenRef.current
+    });
+    
     if (initialFen && initialFen !== prevFenRef.current) {
+      console.log('🔄 [Chessboard] Updating chess position:', {
+        from: prevFenRef.current?.split(' ')[0],
+        to: initialFen.split(' ')[0],
+        turn: initialFen.split(' ')[1]
+      });
+      
       const newChess = new Chess(initialFen);
       setChess(newChess);
+      chessRef.current = newChess; // 🔧 AKTUALIZUJ REF
       setSelectedSquare(null);
       setValidMoves([]);
       setHintSquare(null);
       prevFenRef.current = initialFen;
       
-      console.log('📋 Board position updated from prop');
+      console.log('✅ [Chessboard] Chess position updated, new turn:', newChess.turn());
     }
   }, [initialFen]);
+
+  // 🔧 DODANE: Synchronizuj chessRef z chess state
+  useEffect(() => {
+    chessRef.current = chess;
+  }, [chess]);
 
   // *** EFFECT TO UPDATE LAST MOVE ***
   useEffect(() => {
@@ -293,6 +325,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     setFen: (fen) => {
       const newChess = new Chess(fen);
       setChess(newChess);
+      chessRef.current = newChess; // 🔧 AKTUALIZUJ REF
       setSelectedSquare(null);
       setValidMoves([]);
       setLastMoveFrom(null);
@@ -301,7 +334,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }), []);
 
-  // *** HANDLE MOVE ***
+  // *** HANDLE MOVE - WITH DETAILED LOGS ***
   const handleMove = useCallback((from, to, promotion) => {
     const now = Date.now();
     if (now - lastMoveTime.current < moveDebounceDelay) {
@@ -309,35 +342,54 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
     lastMoveTime.current = now;
 
+    const currentChess = chessRef.current; // 🔧 UŻYJ REF
+    console.log('🎯 [Chessboard] handleMove called:', {
+      from, to, promotion,
+      currentTurn: currentChess.turn(),
+      fen: currentChess.fen().split(' ')[0]
+    });
+
     try {
-      const testChess = new Chess(chess.fen());
+      const testChess = new Chess(currentChess.fen());
       const move = testChess.move({ from, to, promotion });
       
       if (move) {
         // Create new chess instance with the move
-        const newChess = new Chess(chess.fen());
+        const newChess = new Chess(currentChess.fen());
         const actualMove = newChess.move({ from, to, promotion });
         
         if (actualMove) {
+          console.log('✅ [Chessboard] Move executed successfully:', {
+            move: actualMove.san,
+            newTurn: newChess.turn(),
+            newFen: newChess.fen().split(' ')[0]
+          });
+          
           setChess(newChess); // Update chess state
+          chessRef.current = newChess; // 🔧 AKTUALIZUJ REF
           onMove?.(from, to, promotion);
           
           setLastMoveFrom(from);
           setLastMoveTo(to);
+          
+          // 🔧 WYCZYSZCZENIE WSZYSTKICH REFERENCJI PO RUCHU
           setSelectedSquare(null);
           setValidMoves([]);
           setHintSquare(null);
         }
       } else {
+        console.warn('❌ [Chessboard] Invalid move attempted:', { from, to, promotion });
+        // 🔧 WYCZYSZCZENIE TAKŻE PRZY BŁĘDNYM RUCHU
         setSelectedSquare(null);
         setValidMoves([]);
       }
     } catch (e) {
-      console.warn('Move error:', e);
+      console.warn('❌ [Chessboard] Move error:', e);
+      // 🔧 WYCZYSZCZENIE PRZY BŁĘDZIE
       setSelectedSquare(null);
       setValidMoves([]);
     }
-  }, [chess, onMove]);
+  }, []); // 🔧 PUSTA DEPENDENCY ARRAY - używamy ref
 
   // *** HANDLE PAWN PROMOTION ***
   const handlePawnPromotion = useCallback((from, to) => {
@@ -354,34 +406,77 @@ const SmoothChessboard = forwardRef((props, ref) => {
     setPromotionTo('');
   }, [handleMove, promotionFrom, promotionTo]);
 
-  // *** SQUARE PRESS HANDLER ***
+  // *** SQUARE PRESS HANDLER - WITH DETAILED LOGS ***
   const onSquarePress = useCallback((square) => {
-    if (isLoading || readonly) return; // Skip if readonly
+    if (isLoading || readonly) return;
 
-    if (selectedSquare && selectedSquare !== square) {
-      const piece = chess.get(selectedSquare);
-      const pieceTo = chess.get(square);
-      
-      if (piece && piece.type === 'p' && 
-         ((piece.color === 'b' && selectedSquare[1] === '2' && square[1] === '1') || 
-          (piece.color === 'w' && selectedSquare[1] === '7' && square[1] === '8'))) {
-        handlePawnPromotion(selectedSquare, square);
-      } else {
-        if (piece && pieceTo && piece.color === pieceTo.color) {
-          const moves = chess.moves({ square, verbose: true }).map(move => move.to);
-          setValidMoves(moves);
-          setSelectedSquare(square);
-          return;
-        } else {
-          handleMove(selectedSquare, square);
-        }
+    const currentChess = chessRef.current; // 🔧 UŻYJ REF ZAMIAST STATE
+    const currentTurn = currentChess.turn(); // 'w' lub 'b'
+    const clickedPiece = currentChess.get(square);
+    const selectedPiece = selectedSquare ? currentChess.get(selectedSquare) : null;
+
+    console.log('👆 [Chessboard] Square pressed:', {
+      square,
+      currentTurn,
+      clickedPiece: clickedPiece ? `${clickedPiece.color}${clickedPiece.type}` : 'empty',
+      selectedSquare,
+      fen: currentChess.fen().split(' ')[0]
+    });
+
+    // 🎯 PRZYPADEK 1: Kliknięcie na tę samą figurę - toggle selection
+    if (selectedSquare === square) {
+      console.log('🔄 [Chessboard] Toggle selection - deselecting');
+      setSelectedSquare(null);
+      setValidMoves([]);
+      return;
+    }
+
+    // 🎯 PRZYPADEK 2: Mamy już wybraną figurę
+    if (selectedSquare && selectedPiece) {
+      // Sprawdź czy klikamy na naszą inną figurę (zmiana wyboru)
+      if (clickedPiece && clickedPiece.color === currentTurn) {
+        console.log('🔄 [Chessboard] Switching to different piece:', square);
+        // Wybierz nową figurę
+        const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
+        setValidMoves(moves);
+        setSelectedSquare(square);
+        return;
       }
-    } else {
-      const moves = chess.moves({ square, verbose: true }).map(move => move.to);
+      
+      // Sprawdź czy to promocja pionka
+      if (selectedPiece.type === 'p' && 
+         ((selectedPiece.color === 'b' && selectedSquare[1] === '2' && square[1] === '1') || 
+          (selectedPiece.color === 'w' && selectedSquare[1] === '7' && square[1] === '8'))) {
+        console.log('👑 [Chessboard] Pawn promotion detected');
+        handlePawnPromotion(selectedSquare, square);
+        return;
+      }
+      
+      // Próba ruchu na docelowe pole
+      console.log('🎯 [Chessboard] Attempting move from', selectedSquare, 'to', square);
+      handleMove(selectedSquare, square);
+      return;
+    }
+
+    // 🎯 PRZYPADEK 3: Pierwszy wybór figury
+    if (clickedPiece && clickedPiece.color === currentTurn) {
+      console.log('✅ [Chessboard] Selecting piece:', square, `(${clickedPiece.color}${clickedPiece.type})`);
+      // Wybierz figurę tylko jeśli należy do aktualnego gracza
+      const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
+      console.log('📋 [Chessboard] Available moves:', moves);
       setValidMoves(moves);
       setSelectedSquare(square);
+    } else {
+      console.log('❌ [Chessboard] Cannot select:', {
+        reason: clickedPiece ? 'wrong color' : 'empty square',
+        pieceColor: clickedPiece?.color,
+        currentTurn
+      });
+      // Kliknięcie na figurę przeciwnika lub puste pole - wyczyść wybór
+      setSelectedSquare(null);
+      setValidMoves([]);
     }
-  }, [isLoading, readonly, selectedSquare, chess, handleMove, handlePawnPromotion]);
+  }, [isLoading, readonly, selectedSquare, handlePawnPromotion, handleMove]); // 🔧 USUNIĘTE chess z dependencies
 
   // *** GESTURE HANDLERS ***
   const onGestureEvent = useCallback((square) => ({ nativeEvent }) => {
@@ -411,7 +506,8 @@ const SmoothChessboard = forwardRef((props, ref) => {
           : `${String.fromCharCode(104 - toCol)}${toRow + 1}`;
 
         if (expectedMove === `${selectedSquare}${to}`) {
-          const piece = chess.get(selectedSquare);
+          const currentChess = chessRef.current; // 🔧 UŻYJ REF
+          const piece = currentChess.get(selectedSquare);
           if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
             Vibration.vibrate(30);
             handlePawnPromotion(selectedSquare, to);
@@ -421,7 +517,8 @@ const SmoothChessboard = forwardRef((props, ref) => {
           }
         } else {
           if (validMoves.includes(to)) {
-            const piece = chess.get(selectedSquare);
+            const currentChess = chessRef.current; // 🔧 UŻYJ REF
+            const piece = currentChess.get(selectedSquare);
             if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
               Vibration.vibrate(30);
               handlePawnPromotion(selectedSquare, to);
@@ -438,7 +535,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
       }
       setSelectedSquare(null);
     }
-  }, [isLoading, perspective, currentSquareSize, selectedSquare, validMoves, expectedMove, chess, handleMove, handlePawnPromotion]);
+  }, [isLoading, perspective, currentSquareSize, selectedSquare, validMoves, expectedMove, handleMove, handlePawnPromotion]); // 🔧 USUNIĘTE chess
 
   // *** PARSE BEST MOVE ***
   const parseBestMove = useCallback(() => {
@@ -463,12 +560,13 @@ const SmoothChessboard = forwardRef((props, ref) => {
   // *** GET MOVING PIECE ***
   const getMovingPiece = useCallback((from) => {
     try {
-      const piece = chess.get(from);
+      const currentChess = chessRef.current; // 🔧 UŻYJ REF
+      const piece = currentChess.get(from);
       return piece ? piece.type : null;
     } catch (error) {
       return null;
     }
-  }, [chess]);
+  }, []); // 🔧 PUSTA DEPENDENCY ARRAY
 
   // *** MEMOIZED VALUES ***
   const files = useMemo(() => 
@@ -487,7 +585,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
   const movingPiece = useMemo(() => bestMoveData ? getMovingPiece(bestMoveData.from) : null, [bestMoveData, getMovingPiece]);
 
   const board = useMemo(() => {
-    const boardArray = chess.board();
+    const boardArray = chess.board(); // 🔧 UŻYJ STATE W MEMO
     if (perspective === 'black') {
       boardArray.reverse();
       for (let row of boardArray) {
@@ -495,7 +593,17 @@ const SmoothChessboard = forwardRef((props, ref) => {
       }
     }
     return boardArray;
-  }, [chess, perspective]);
+  }, [chess, perspective]); // 🔧 DEPENDENCY NA STATE
+
+  // *** LOG BOARD RENDER ***
+  console.log('🎨 [Chessboard] Rendering with state:', {
+    fen: chess.fen().split(' ')[0], // 🔧 UŻYJ STATE DO RENDEROWANIA
+    turn: chess.turn(), // 🔧 UŻYJ STATE DO RENDEROWANIA
+    selectedSquare,
+    validMoves: validMoves.length,
+    lastMove: `${lastMoveFrom}-${lastMoveTo}`,
+    perspective
+  });
 
   return (
     <GestureHandlerRootView style={styles.container}>
