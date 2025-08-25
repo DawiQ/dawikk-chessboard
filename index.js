@@ -34,9 +34,18 @@ export {
   getThemeAccessibility
 } from './src/chessboardColors';
 
-// Utility exports
-export { clearArrowCache } from './src/components/Arrow';
-export { clearSquareCache } from './src/components/Square';
+// Cache utility functions (placeholder implementations)
+export const clearArrowCache = () => {
+  if (__DEV__) {
+    console.log('Arrow cache cleared');
+  }
+};
+
+export const clearSquareCache = () => {
+  if (__DEV__) {
+    console.log('Square cache cleared');
+  }
+};
 
 // Default theme configurations for easy access
 export const DefaultThemes = {

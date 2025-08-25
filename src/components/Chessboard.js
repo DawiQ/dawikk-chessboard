@@ -728,4 +728,5 @@ const styles = StyleSheet.create({
   },
 });
 
+SmoothChessboardWrapper.displayName = 'Chessboard';
 export default SmoothChessboardWrapper;
