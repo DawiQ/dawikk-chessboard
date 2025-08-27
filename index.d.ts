@@ -89,6 +89,9 @@ export interface ChessboardProps {
   showCoordinates?: boolean;
   readonly?: boolean;
   
+  // 🎯 NEW: Circles around pieces on specific squares (for Hand & Brain)
+  circledSquares?: string[];
+  
   // 🎯 NEW STANDALONE PROPS
   boardTheme?: BoardTheme | null;
   textColors?: Partial<TextColors> | null;
@@ -117,6 +120,7 @@ export interface SquareProps {
   isLastMoveFrom?: boolean;
   isLastMoveTo?: boolean;
   isHintSquare?: boolean;
+  isCircled?: boolean;  // 🎯 NEW: For Hand & Brain mode
   perspective?: 'white' | 'black';
   currentSquareSize?: number;
   readonly?: boolean;

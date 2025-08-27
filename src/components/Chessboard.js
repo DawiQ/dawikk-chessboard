@@ -98,8 +98,9 @@ const ReadonlyBoardRow = React.memo(({
   lastMoveTo, 
   perspective, 
   hintSquare,
+  circledSquares, // 🎯 NEW PROP
   currentSquareSize,
-  boardTheme // 🎯 NEW PROP
+  boardTheme
 }) => {
   return (
     <View style={styles.boardRow}>
@@ -121,12 +122,13 @@ const ReadonlyBoardRow = React.memo(({
             isLastMoveFrom={squareNotation === lastMoveFrom}
             isLastMoveTo={squareNotation === lastMoveTo}
             isHintSquare={squareNotation === hintSquare}
+            isCircled={circledSquares?.includes(squareNotation)} // 🎯 NEW
             onGestureEvent={() => {}} // Empty function for readonly
             onHandlerStateChange={() => {}} // Empty function for readonly
             perspective={perspective}
             currentSquareSize={currentSquareSize}
             readonly={true}
-            boardTheme={boardTheme} // 🎯 PASS THEME AS PROP
+            boardTheme={boardTheme}
           />
         );
       })}
@@ -149,8 +151,10 @@ const BoardRow = React.memo(({
   lastMoveTo, 
   perspective, 
   hintSquare,
+  circledSquares, // 🎯 NEW PROP
   currentSquareSize,
-  boardTheme // 🎯 NEW PROP
+  boardTheme,
+  readonly // 🔧 FIX: Added readonly prop
 }) => {
   return (
     <View style={styles.boardRow}>
@@ -172,11 +176,13 @@ const BoardRow = React.memo(({
             isLastMoveFrom={squareNotation === lastMoveFrom}
             isLastMoveTo={squareNotation === lastMoveTo}
             isHintSquare={squareNotation === hintSquare}
+            isCircled={circledSquares?.includes(squareNotation)} // 🎯 NEW
             onGestureEvent={onGestureEvent(squareNotation)}
             onHandlerStateChange={onHandlerStateChange(squareNotation)}
             perspective={perspective}
             currentSquareSize={currentSquareSize}
-            boardTheme={boardTheme} // 🎯 PASS THEME AS PROP
+            boardTheme={boardTheme}
+            readonly={readonly} // 🔧 FIX: Pass readonly to Square
           />
         );
       })}
@@ -198,6 +204,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     bestMove,
     arrows = [],
     expectedMove,
+    circledSquares = [], // 🎯 NEW PROP for Hand & Brain mode
     // 🎯 NEW PROPS - Accept theme and colors directly
     boardTheme = null,
     textColors = null,
@@ -237,10 +244,8 @@ const SmoothChessboard = forwardRef((props, ref) => {
   const moveDebounceDelay = 150;
   const boardRef = useRef(null);
   const prevFenRef = useRef(initialFen);
-  // 🔧 DODANE: Ref dla aktualnego stanu chess
   const chessRef = useRef();
   
-  // 🔧 Ustaw chess do ref po utworzeniu
   if (!chessRef.current) {
     chessRef.current = chess;
   }
@@ -275,7 +280,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
       
       const newChess = new Chess(initialFen);
       setChess(newChess);
-      chessRef.current = newChess; // 🔧 AKTUALIZUJ REF
+      chessRef.current = newChess;
       setSelectedSquare(null);
       setValidMoves([]);
       setHintSquare(null);
@@ -285,7 +290,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }, [initialFen]);
 
-  // 🔧 DODANE: Synchronizuj chessRef z chess state
   useEffect(() => {
     chessRef.current = chess;
   }, [chess]);
@@ -325,7 +329,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     setFen: (fen) => {
       const newChess = new Chess(fen);
       setChess(newChess);
-      chessRef.current = newChess; // 🔧 AKTUALIZUJ REF
+      chessRef.current = newChess;
       setSelectedSquare(null);
       setValidMoves([]);
       setLastMoveFrom(null);
@@ -342,7 +346,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
     lastMoveTime.current = now;
 
-    const currentChess = chessRef.current; // 🔧 UŻYJ REF
+    const currentChess = chessRef.current;
     console.log('🎯 [Chessboard] handleMove called:', {
       from, to, promotion,
       currentTurn: currentChess.turn(),
@@ -354,7 +358,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
       const move = testChess.move({ from, to, promotion });
       
       if (move) {
-        // Create new chess instance with the move
         const newChess = new Chess(currentChess.fen());
         const actualMove = newChess.move({ from, to, promotion });
         
@@ -365,31 +368,28 @@ const SmoothChessboard = forwardRef((props, ref) => {
             newFen: newChess.fen().split(' ')[0]
           });
           
-          setChess(newChess); // Update chess state
-          chessRef.current = newChess; // 🔧 AKTUALIZUJ REF
+          setChess(newChess);
+          chessRef.current = newChess;
           onMove?.(from, to, promotion);
           
           setLastMoveFrom(from);
           setLastMoveTo(to);
           
-          // 🔧 WYCZYSZCZENIE WSZYSTKICH REFERENCJI PO RUCHU
           setSelectedSquare(null);
           setValidMoves([]);
           setHintSquare(null);
         }
       } else {
         console.warn('❌ [Chessboard] Invalid move attempted:', { from, to, promotion });
-        // 🔧 WYCZYSZCZENIE TAKŻE PRZY BŁĘDNYM RUCHU
         setSelectedSquare(null);
         setValidMoves([]);
       }
     } catch (e) {
       console.warn('❌ [Chessboard] Move error:', e);
-      // 🔧 WYCZYSZCZENIE PRZY BŁĘDZIE
       setSelectedSquare(null);
       setValidMoves([]);
     }
-  }, []); // 🔧 PUSTA DEPENDENCY ARRAY - używamy ref
+  }, []);
 
   // *** HANDLE PAWN PROMOTION ***
   const handlePawnPromotion = useCallback((from, to) => {
@@ -410,8 +410,8 @@ const SmoothChessboard = forwardRef((props, ref) => {
   const onSquarePress = useCallback((square) => {
     if (isLoading || readonly) return;
 
-    const currentChess = chessRef.current; // 🔧 UŻYJ REF ZAMIAST STATE
-    const currentTurn = currentChess.turn(); // 'w' lub 'b'
+    const currentChess = chessRef.current;
+    const currentTurn = currentChess.turn();
     const clickedPiece = currentChess.get(square);
     const selectedPiece = selectedSquare ? currentChess.get(selectedSquare) : null;
 
@@ -436,7 +436,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
       // Sprawdź czy klikamy na naszą inną figurę (zmiana wyboru)
       if (clickedPiece && clickedPiece.color === currentTurn) {
         console.log('🔄 [Chessboard] Switching to different piece:', square);
-        // Wybierz nową figurę
         const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
         setValidMoves(moves);
         setSelectedSquare(square);
@@ -461,7 +460,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
     // 🎯 PRZYPADEK 3: Pierwszy wybór figury
     if (clickedPiece && clickedPiece.color === currentTurn) {
       console.log('✅ [Chessboard] Selecting piece:', square, `(${clickedPiece.color}${clickedPiece.type})`);
-      // Wybierz figurę tylko jeśli należy do aktualnego gracza
       const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
       console.log('📋 [Chessboard] Available moves:', moves);
       setValidMoves(moves);
@@ -472,15 +470,14 @@ const SmoothChessboard = forwardRef((props, ref) => {
         pieceColor: clickedPiece?.color,
         currentTurn
       });
-      // Kliknięcie na figurę przeciwnika lub puste pole - wyczyść wybór
       setSelectedSquare(null);
       setValidMoves([]);
     }
-  }, [isLoading, readonly, selectedSquare, handlePawnPromotion, handleMove]); // 🔧 USUNIĘTE chess z dependencies
+  }, [isLoading, readonly, selectedSquare, handlePawnPromotion, handleMove]);
 
   // *** GESTURE HANDLERS ***
   const onGestureEvent = useCallback((square) => ({ nativeEvent }) => {
-    if (isLoading || readonly || !currentSquareSize) return; // Skip if readonly
+    if (isLoading || readonly || !currentSquareSize) return;
     
     panValues.current[square] = {
       x: nativeEvent.translationX,
@@ -489,7 +486,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
   }, [isLoading, readonly, currentSquareSize]);
 
   const onHandlerStateChange = useCallback((square) => ({ nativeEvent }) => {
-    if (isLoading || readonly || !currentSquareSize) return; // Skip if readonly
+    if (isLoading || readonly || !currentSquareSize) return;
     
     if (nativeEvent.state === State.END) {
       const col = parseInt(square.charCodeAt(0) - 97);
@@ -506,7 +503,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
           : `${String.fromCharCode(104 - toCol)}${toRow + 1}`;
 
         if (expectedMove === `${selectedSquare}${to}`) {
-          const currentChess = chessRef.current; // 🔧 UŻYJ REF
+          const currentChess = chessRef.current;
           const piece = currentChess.get(selectedSquare);
           if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
             Vibration.vibrate(30);
@@ -517,7 +514,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
           }
         } else {
           if (validMoves.includes(to)) {
-            const currentChess = chessRef.current; // 🔧 UŻYJ REF
+            const currentChess = chessRef.current;
             const piece = currentChess.get(selectedSquare);
             if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
               Vibration.vibrate(30);
@@ -535,7 +532,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
       }
       setSelectedSquare(null);
     }
-  }, [isLoading, perspective, currentSquareSize, selectedSquare, validMoves, expectedMove, handleMove, handlePawnPromotion]); // 🔧 USUNIĘTE chess
+  }, [isLoading, perspective, currentSquareSize, selectedSquare, validMoves, expectedMove, handleMove, handlePawnPromotion]);
 
   // *** PARSE BEST MOVE ***
   const parseBestMove = useCallback(() => {
@@ -560,13 +557,13 @@ const SmoothChessboard = forwardRef((props, ref) => {
   // *** GET MOVING PIECE ***
   const getMovingPiece = useCallback((from) => {
     try {
-      const currentChess = chessRef.current; // 🔧 UŻYJ REF
+      const currentChess = chessRef.current;
       const piece = currentChess.get(from);
       return piece ? piece.type : null;
     } catch (error) {
       return null;
     }
-  }, []); // 🔧 PUSTA DEPENDENCY ARRAY
+  }, []);
 
   // *** MEMOIZED VALUES ***
   const files = useMemo(() => 
@@ -585,7 +582,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
   const movingPiece = useMemo(() => bestMoveData ? getMovingPiece(bestMoveData.from) : null, [bestMoveData, getMovingPiece]);
 
   const board = useMemo(() => {
-    const boardArray = chess.board(); // 🔧 UŻYJ STATE W MEMO
+    const boardArray = chess.board();
     if (perspective === 'black') {
       boardArray.reverse();
       for (let row of boardArray) {
@@ -593,25 +590,24 @@ const SmoothChessboard = forwardRef((props, ref) => {
       }
     }
     return boardArray;
-  }, [chess, perspective]); // 🔧 DEPENDENCY NA STATE
+  }, [chess, perspective]);
 
   // *** LOG BOARD RENDER ***
   console.log('🎨 [Chessboard] Rendering with state:', {
-    fen: chess.fen().split(' ')[0], // 🔧 UŻYJ STATE DO RENDEROWANIA
-    turn: chess.turn(), // 🔧 UŻYJ STATE DO RENDEROWANIA
+    fen: chess.fen().split(' ')[0],
+    turn: chess.turn(),
     selectedSquare,
     validMoves: validMoves.length,
     lastMove: `${lastMoveFrom}-${lastMoveTo}`,
-    perspective
+    perspective,
+    circledSquares: circledSquares?.length || 0 // 🎯 LOG NEW PROP
   });
 
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.chessboardWrapper}>
-        {/* Square container for the entire chessboard component */}
         <View style={styles.outerContainer}>
           <View style={styles.boardWithLabels}>
-            {/* Board row with rank labels */}
             <View style={styles.boardRowContainer}>
               {/* RANK LABELS */}
               {showCoordinates && (
@@ -657,9 +653,10 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           lastMoveFrom={lastMoveFrom}
                           lastMoveTo={lastMoveTo}
                           hintSquare={hintSquare}
+                          circledSquares={circledSquares} // 🎯 NEW
                           perspective={perspective}
                           currentSquareSize={currentSquareSize}
-                          boardTheme={activeBoardTheme} // 🎯 PASS THEME
+                          boardTheme={activeBoardTheme}
                         />
                       ))
                     ) : (
@@ -677,9 +674,10 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           lastMoveFrom={lastMoveFrom}
                           lastMoveTo={lastMoveTo}
                           hintSquare={hintSquare}
+                          circledSquares={circledSquares} // 🎯 NEW
                           perspective={perspective}
                           currentSquareSize={currentSquareSize}
-                          boardTheme={activeBoardTheme} // 🎯 PASS THEME
+                          boardTheme={activeBoardTheme}
                         />
                       ))
                     )}
@@ -798,7 +796,7 @@ const styles = StyleSheet.create({
   outerContainer: {
     width: '100%',
     maxWidth: '100%',
-    aspectRatio: 1, // The entire component maintains square ratio
+    aspectRatio: 1,
   },
   boardWithLabels: {
     flex: 1,

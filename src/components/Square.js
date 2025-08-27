@@ -182,6 +182,48 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
 
 AnimatedHint.displayName = 'AnimatedHint';
 
+// *** 🎯 NEW: CIRCLE INDICATOR FOR HAND & BRAIN MODE ***
+const CircleIndicator = memo(() => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, []);
+
+  return (
+    <Animated.View 
+      style={[
+        styles.circleIndicator,
+        { transform: [{ scale: scaleAnim }] }
+      ]}
+      pointerEvents="none"
+    >
+      <View style={styles.circleOuter}>
+        <View style={styles.circleInner} />
+      </View>
+    </Animated.View>
+  );
+});
+
+CircleIndicator.displayName = 'CircleIndicator';
+
 // *** READONLY PIECE COMPONENT - Optimized for performance ***
 const ReadonlyPieceComponent = memo(({ piece }) => {
   const pieceType = `${piece.color}${piece.type.toLowerCase()}`;
@@ -242,6 +284,7 @@ const Square = memo(({
   isLastMoveFrom, 
   isLastMoveTo,
   isHintSquare = false,
+  isCircled = false, // 🎯 NEW PROP
   currentSquareSize,
   readonly = false,
   // 🎯 NEW PROPS - Accept theme directly
@@ -357,6 +400,11 @@ const Square = memo(({
       
       {renderPiece()}
       
+      {/* 🎯 NEW: Circle indicator for Hand & Brain mode */}
+      {isCircled && piece && (
+        <CircleIndicator />
+      )}
+      
       {isHintSquare && (
         <AnimatedHint 
           boardTheme={activeTheme} 
@@ -374,7 +422,7 @@ const Square = memo(({
 }, (prevProps, nextProps) => {
   const essentialProps = [
     'isHighlighted', 'isMovePossible', 'isLastMoveFrom', 'isLastMoveTo',
-    'isHintSquare', 'row', 'col', 'currentSquareSize', 'readonly', 'boardTheme'
+    'isHintSquare', 'isCircled', 'row', 'col', 'currentSquareSize', 'readonly', 'boardTheme'
   ];
 
   for (const prop of essentialProps) {
@@ -463,6 +511,40 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 0.5,
     borderColor: 'rgba(255, 107, 53, 0.3)',
+  },
+  // 🎯 NEW STYLES: Circle indicator for Hand & Brain mode
+  circleIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 11,
+  },
+  circleOuter: {
+    width: '90%',
+    height: '90%',
+    borderRadius: 200,
+    borderWidth: 3,
+    borderColor: '#00E676',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 230, 118, 0.15)',
+    shadowColor: '#00E676',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  circleInner: {
+    width: '85%',
+    height: '85%',
+    borderRadius: 200,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 230, 118, 0.5)',
+    backgroundColor: 'rgba(0, 230, 118, 0.05)',
   },
 });
 
