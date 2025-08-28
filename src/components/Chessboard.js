@@ -98,7 +98,7 @@ const ReadonlyBoardRow = React.memo(({
   lastMoveTo, 
   perspective, 
   hintSquare,
-  circledSquares, // 🎯 NEW PROP
+  circledSquares,
   currentSquareSize,
   boardTheme
 }) => {
@@ -118,13 +118,13 @@ const ReadonlyBoardRow = React.memo(({
             square={squareNotation}
             isHighlighted={false}
             isMovePossible={false}
-            onSquarePress={() => {}} // Empty function for readonly
+            onSquarePress={() => {}}
             isLastMoveFrom={squareNotation === lastMoveFrom}
             isLastMoveTo={squareNotation === lastMoveTo}
             isHintSquare={squareNotation === hintSquare}
-            isCircled={circledSquares?.includes(squareNotation)} // 🎯 NEW
-            onGestureEvent={() => {}} // Empty function for readonly
-            onHandlerStateChange={() => {}} // Empty function for readonly
+            isCircled={circledSquares?.includes(squareNotation)}
+            onGestureEvent={() => {}}
+            onHandlerStateChange={() => {}}
             perspective={perspective}
             currentSquareSize={currentSquareSize}
             readonly={true}
@@ -151,10 +151,10 @@ const BoardRow = React.memo(({
   lastMoveTo, 
   perspective, 
   hintSquare,
-  circledSquares, // 🎯 NEW PROP
+  circledSquares,
   currentSquareSize,
   boardTheme,
-  readonly // 🔧 FIX: Added readonly prop
+  readonly
 }) => {
   return (
     <View style={styles.boardRow}>
@@ -176,13 +176,13 @@ const BoardRow = React.memo(({
             isLastMoveFrom={squareNotation === lastMoveFrom}
             isLastMoveTo={squareNotation === lastMoveTo}
             isHintSquare={squareNotation === hintSquare}
-            isCircled={circledSquares?.includes(squareNotation)} // 🎯 NEW
+            isCircled={circledSquares?.includes(squareNotation)}
             onGestureEvent={onGestureEvent(squareNotation)}
             onHandlerStateChange={onHandlerStateChange(squareNotation)}
             perspective={perspective}
             currentSquareSize={currentSquareSize}
             boardTheme={boardTheme}
-            readonly={readonly} // 🔧 FIX: Pass readonly to Square
+            readonly={readonly}
           />
         );
       })}
@@ -192,7 +192,7 @@ const BoardRow = React.memo(({
 
 BoardRow.displayName = 'BoardRow';
 
-// *** MAIN CHESSBOARD COMPONENT - STANDALONE VERSION ***
+// *** MAIN CHESSBOARD COMPONENT - ENHANCED WITH HAND & BRAIN CONTROL ***
 const SmoothChessboard = forwardRef((props, ref) => {
   const {
     fen: initialFen,
@@ -204,8 +204,9 @@ const SmoothChessboard = forwardRef((props, ref) => {
     bestMove,
     arrows = [],
     expectedMove,
-    circledSquares = [], // 🎯 NEW PROP for Hand & Brain mode
-    // 🎯 NEW PROPS - Accept theme and colors directly
+    circledSquares = [],
+    restrictToCircled = false, // 🎯 NEW PROP: Control if only circled pieces can move
+    onRestrictedMoveAttempt, // 🎯 NEW PROP: Callback when trying to move non-circled piece
     boardTheme = null,
     textColors = null,
     colors = null,
@@ -263,7 +264,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     setBoardDimensions({ width, height });
   }, []);
 
-  // *** EFFECT TO UPDATE CHESS POSITION - WITH DETAILED LOGS ***
+  // *** EFFECT TO UPDATE CHESS POSITION ***
   useEffect(() => {
     console.log('🔍 [Chessboard] useEffect FEN check:', {
       initialFen: initialFen,
@@ -338,7 +339,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }), []);
 
-  // *** HANDLE MOVE - WITH DETAILED LOGS ***
+  // *** HANDLE MOVE ***
   const handleMove = useCallback((from, to, promotion) => {
     const now = Date.now();
     if (now - lastMoveTime.current < moveDebounceDelay) {
@@ -406,7 +407,17 @@ const SmoothChessboard = forwardRef((props, ref) => {
     setPromotionTo('');
   }, [handleMove, promotionFrom, promotionTo]);
 
-  // *** SQUARE PRESS HANDLER - WITH DETAILED LOGS ***
+  // *** 🎯 CHECK IF PIECE CAN BE SELECTED (Hand & Brain mode) ***
+  const canSelectPiece = useCallback((square) => {
+    // If restrictToCircled is true and we have circled squares
+    if (restrictToCircled && circledSquares && circledSquares.length > 0) {
+      return circledSquares.includes(square);
+    }
+    // If not restricted or no circles, allow all
+    return true;
+  }, [restrictToCircled, circledSquares]);
+
+  // *** SQUARE PRESS HANDLER - ENHANCED WITH RESTRICTION CHECK ***
   const onSquarePress = useCallback((square) => {
     if (isLoading || readonly) return;
 
@@ -420,10 +431,13 @@ const SmoothChessboard = forwardRef((props, ref) => {
       currentTurn,
       clickedPiece: clickedPiece ? `${clickedPiece.color}${clickedPiece.type}` : 'empty',
       selectedSquare,
+      canSelect: canSelectPiece(square),
+      restrictToCircled,
+      isCircled: circledSquares?.includes(square),
       fen: currentChess.fen().split(' ')[0]
     });
 
-    // 🎯 PRZYPADEK 1: Kliknięcie na tę samą figurę - toggle selection
+    // CASE 1: Clicking the same piece - toggle selection
     if (selectedSquare === square) {
       console.log('🔄 [Chessboard] Toggle selection - deselecting');
       setSelectedSquare(null);
@@ -431,10 +445,21 @@ const SmoothChessboard = forwardRef((props, ref) => {
       return;
     }
 
-    // 🎯 PRZYPADEK 2: Mamy już wybraną figurę
+    // CASE 2: We have a selected piece
     if (selectedSquare && selectedPiece) {
-      // Sprawdź czy klikamy na naszą inną figurę (zmiana wyboru)
+      // Check if clicking on another of our pieces (switching selection)
       if (clickedPiece && clickedPiece.color === currentTurn) {
+        // 🎯 CHECK RESTRICTION for the new piece
+        if (!canSelectPiece(square)) {
+          console.log('🚫 [Chessboard] Cannot select non-circled piece:', square);
+          if (onRestrictedMoveAttempt) {
+            onRestrictedMoveAttempt(square, 'select');
+          }
+          // Optionally vibrate to indicate restriction
+          Vibration.vibrate(100);
+          return;
+        }
+        
         console.log('🔄 [Chessboard] Switching to different piece:', square);
         const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
         setValidMoves(moves);
@@ -442,7 +467,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
         return;
       }
       
-      // Sprawdź czy to promocja pionka
+      // Check if it's a pawn promotion
       if (selectedPiece.type === 'p' && 
          ((selectedPiece.color === 'b' && selectedSquare[1] === '2' && square[1] === '1') || 
           (selectedPiece.color === 'w' && selectedSquare[1] === '7' && square[1] === '8'))) {
@@ -451,14 +476,25 @@ const SmoothChessboard = forwardRef((props, ref) => {
         return;
       }
       
-      // Próba ruchu na docelowe pole
+      // Attempt to move to target square
       console.log('🎯 [Chessboard] Attempting move from', selectedSquare, 'to', square);
       handleMove(selectedSquare, square);
       return;
     }
 
-    // 🎯 PRZYPADEK 3: Pierwszy wybór figury
+    // CASE 3: First piece selection
     if (clickedPiece && clickedPiece.color === currentTurn) {
+      // 🎯 CHECK RESTRICTION for initial selection
+      if (!canSelectPiece(square)) {
+        console.log('🚫 [Chessboard] Cannot select non-circled piece:', square);
+        if (onRestrictedMoveAttempt) {
+          onRestrictedMoveAttempt(square, 'select');
+        }
+        // Vibrate to indicate restriction
+        Vibration.vibrate(100);
+        return;
+      }
+      
       console.log('✅ [Chessboard] Selecting piece:', square, `(${clickedPiece.color}${clickedPiece.type})`);
       const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
       console.log('📋 [Chessboard] Available moves:', moves);
@@ -473,20 +509,37 @@ const SmoothChessboard = forwardRef((props, ref) => {
       setSelectedSquare(null);
       setValidMoves([]);
     }
-  }, [isLoading, readonly, selectedSquare, handlePawnPromotion, handleMove]);
+  }, [isLoading, readonly, selectedSquare, handlePawnPromotion, handleMove, canSelectPiece, restrictToCircled, circledSquares, onRestrictedMoveAttempt]);
 
-  // *** GESTURE HANDLERS ***
+  // *** GESTURE HANDLERS - ENHANCED WITH RESTRICTION CHECK ***
   const onGestureEvent = useCallback((square) => ({ nativeEvent }) => {
     if (isLoading || readonly || !currentSquareSize) return;
+    
+    // 🎯 CHECK RESTRICTION for drag start
+    if (!canSelectPiece(square)) {
+      return; // Don't allow dragging non-circled pieces
+    }
     
     panValues.current[square] = {
       x: nativeEvent.translationX,
       y: nativeEvent.translationY
     };
-  }, [isLoading, readonly, currentSquareSize]);
+  }, [isLoading, readonly, currentSquareSize, canSelectPiece]);
 
   const onHandlerStateChange = useCallback((square) => ({ nativeEvent }) => {
     if (isLoading || readonly || !currentSquareSize) return;
+    
+    // 🎯 CHECK RESTRICTION at drag start
+    if (nativeEvent.state === State.BEGAN) {
+      if (!canSelectPiece(square)) {
+        console.log('🚫 [Chessboard] Cannot drag non-circled piece:', square);
+        if (onRestrictedMoveAttempt) {
+          onRestrictedMoveAttempt(square, 'drag');
+        }
+        Vibration.vibrate(100);
+        return;
+      }
+    }
     
     if (nativeEvent.state === State.END) {
       const col = parseInt(square.charCodeAt(0) - 97);
@@ -532,7 +585,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
       }
       setSelectedSquare(null);
     }
-  }, [isLoading, perspective, currentSquareSize, selectedSquare, validMoves, expectedMove, handleMove, handlePawnPromotion]);
+  }, [isLoading, perspective, currentSquareSize, selectedSquare, validMoves, expectedMove, handleMove, handlePawnPromotion, canSelectPiece, onRestrictedMoveAttempt]);
 
   // *** PARSE BEST MOVE ***
   const parseBestMove = useCallback(() => {
@@ -600,7 +653,8 @@ const SmoothChessboard = forwardRef((props, ref) => {
     validMoves: validMoves.length,
     lastMove: `${lastMoveFrom}-${lastMoveTo}`,
     perspective,
-    circledSquares: circledSquares?.length || 0 // 🎯 LOG NEW PROP
+    circledSquares: circledSquares?.length || 0,
+    restrictToCircled
   });
 
   return (
@@ -653,7 +707,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           lastMoveFrom={lastMoveFrom}
                           lastMoveTo={lastMoveTo}
                           hintSquare={hintSquare}
-                          circledSquares={circledSquares} // 🎯 NEW
+                          circledSquares={circledSquares}
                           perspective={perspective}
                           currentSquareSize={currentSquareSize}
                           boardTheme={activeBoardTheme}
@@ -674,10 +728,11 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           lastMoveFrom={lastMoveFrom}
                           lastMoveTo={lastMoveTo}
                           hintSquare={hintSquare}
-                          circledSquares={circledSquares} // 🎯 NEW
+                          circledSquares={circledSquares}
                           perspective={perspective}
                           currentSquareSize={currentSquareSize}
                           boardTheme={activeBoardTheme}
+                          readonly={readonly}
                         />
                       ))
                     )}
