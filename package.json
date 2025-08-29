@@ -1,6 +1,6 @@
 {
     "name": "dawikk-chessboard",
-    "version": "0.1.41",
+    "version": "0.1.42",
     "description": "A highly optimized, feature-rich React Native chessboard component with gesture support, animations, customizable themes, and standalone mode support",
     "main": "index.js",
     "types": "index.d.ts",

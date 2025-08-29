@@ -3,7 +3,7 @@ import { View, StyleSheet, Image, Pressable, Animated } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-// *** PIECE IMAGES - Requires assets folder ***
+// *** PIECE IMAGES - Cache references ***
 const PIECES = {
   br: require('../../assets/br.png'),
   bp: require('../../assets/bp.png'),
@@ -19,7 +19,7 @@ const PIECES = {
   wk: require('../../assets/wk.png'),
 };
 
-// *** DEFAULT BOARD THEME - fallback when no theme provided ***
+// *** DEFAULT BOARD THEME ***
 const DEFAULT_BOARD_THEME = {
   light: '#EEEED2',
   dark: '#769656',
@@ -33,86 +33,96 @@ const DEFAULT_BOARD_THEME = {
   hintDarkBg: '#FF8C69'
 };
 
-// *** ANIMATED HINT COMPONENT - Accept boardTheme as prop ***
+// *** CACHED STYLES FOR COMMON PATTERNS ***
+const cachedOverlayStyles = new Map();
+
+const getCachedOverlayStyle = (key, style) => {
+  if (!cachedOverlayStyles.has(key)) {
+    cachedOverlayStyles.set(key, style);
+  }
+  return cachedOverlayStyles.get(key);
+};
+
+// *** OPTIMIZED ANIMATED HINT - Reduced re-renders ***
 const AnimatedHint = memo(({ boardTheme, isBlack }) => {
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const animRefs = useRef({
+    pulse: new Animated.Value(0),
+    glow: new Animated.Value(0),
+    scale: new Animated.Value(1)
+  }).current;
 
   useEffect(() => {
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: false,
-        }),
-      ])
-    );
+    // Create all animations once
+    const animations = [
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(animRefs.pulse, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: false,
+          }),
+          Animated.timing(animRefs.pulse, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: false,
+          }),
+        ])
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(animRefs.glow, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: false,
+          }),
+          Animated.timing(animRefs.glow, {
+            toValue: 0.2,
+            duration: 1500,
+            useNativeDriver: false,
+          }),
+        ])
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(animRefs.scale, {
+            toValue: 1.02,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animRefs.scale, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ];
 
-    const glowAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: false,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.2,
-          duration: 1500,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-
-    const scaleAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.02,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    pulseAnimation.start();
-    glowAnimation.start();
-    scaleAnimation.start();
+    animations.forEach(anim => anim.start());
 
     return () => {
-      pulseAnimation.stop();
-      glowAnimation.stop();
-      scaleAnimation.stop();
+      animations.forEach(anim => anim.stop());
     };
-  }, []);
+  }, []); // Empty deps - animations never change
 
-  const borderColor = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [
-      boardTheme?.hintBorder || DEFAULT_BOARD_THEME.hintBorder,
-      '#FFFFFF'
-    ],
-  });
-
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.2, 0.8],
-  });
-
-  const borderWidth = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [2, 4],
-  });
+  // Memoize interpolations
+  const { borderColor, glowOpacity, borderWidth } = useMemo(() => ({
+    borderColor: animRefs.pulse.interpolate({
+      inputRange: [0, 1],
+      outputRange: [
+        boardTheme?.hintBorder || DEFAULT_BOARD_THEME.hintBorder,
+        '#FFFFFF'
+      ],
+    }),
+    glowOpacity: animRefs.glow.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.2, 0.8],
+    }),
+    borderWidth: animRefs.pulse.interpolate({
+      inputRange: [0, 1],
+      outputRange: [2, 4],
+    })
+  }), [boardTheme]);
 
   return (
     <>
@@ -132,19 +142,7 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
         style={[
           styles.overlay,
           {
-            backgroundColor: boardTheme?.hintGlow || DEFAULT_BOARD_THEME.hintGlow,
-            opacity: glowOpacity,
-            borderRadius: 6,
-            zIndex: 9,
-          }
-        ]}
-      />
-      
-      <Animated.View
-        style={[
-          styles.overlay,
-          {
-            transform: [{ scale: scaleAnim }],
+            transform: [{ scale: animRefs.scale }],
             zIndex: 10,
           }
         ]}
@@ -166,7 +164,7 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
         style={[
           styles.hintIndicator,
           {
-            transform: [{ scale: scaleAnim }],
+            transform: [{ scale: animRefs.scale }],
           }
         ]}
       >
@@ -182,7 +180,7 @@ const AnimatedHint = memo(({ boardTheme, isBlack }) => {
 
 AnimatedHint.displayName = 'AnimatedHint';
 
-// *** 🎯 NEW: CIRCLE INDICATOR FOR HAND & BRAIN MODE ***
+// *** OPTIMIZED CIRCLE INDICATOR ***
 const CircleIndicator = memo(() => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -203,7 +201,6 @@ const CircleIndicator = memo(() => {
     );
 
     animation.start();
-
     return () => animation.stop();
   }, []);
 
@@ -224,32 +221,33 @@ const CircleIndicator = memo(() => {
 
 CircleIndicator.displayName = 'CircleIndicator';
 
-// *** READONLY PIECE COMPONENT - Optimized for performance ***
-const ReadonlyPieceComponent = memo(({ piece }) => {
-  const pieceType = `${piece.color}${piece.type.toLowerCase()}`;
+// *** STATIC PIECE IMAGE COMPONENT ***
+const PieceImage = memo(({ pieceType }) => {
   const pieceSource = PIECES[pieceType];
-
   if (!pieceSource) return null;
 
   return (
-    <View style={styles.pieceContainer}>
-      <Image
-        style={styles.pieceImage}
-        source={pieceSource}
-        resizeMode="contain"
-      />
-    </View>
+    <Image
+      style={styles.pieceImage}
+      source={pieceSource}
+      resizeMode="contain"
+    />
   );
 });
 
-ReadonlyPieceComponent.displayName = 'ReadonlyPieceComponent';
+PieceImage.displayName = 'PieceImage';
 
-// *** PIECE COMPONENT WITH IMAGES ***
-const PieceComponent = memo(({ piece, onGestureEvent, onHandlerStateChange, onPress }) => {
+// *** PIECE COMPONENT - Optimized ***
+const PieceComponent = memo(({ piece, onGestureEvent, onHandlerStateChange, onPress, readonly }) => {
   const pieceType = `${piece.color}${piece.type.toLowerCase()}`;
-  const pieceSource = PIECES[pieceType];
 
-  if (!pieceSource) return null;
+  if (readonly) {
+    return (
+      <View style={styles.pieceContainer}>
+        <PieceImage pieceType={pieceType} />
+      </View>
+    );
+  }
 
   return (
     <PanGestureHandler
@@ -258,11 +256,7 @@ const PieceComponent = memo(({ piece, onGestureEvent, onHandlerStateChange, onPr
       onActivated={onPress}
     >
       <View style={styles.pieceContainer}>
-        <Image
-          style={styles.pieceImage}
-          source={pieceSource}
-          resizeMode="contain"
-        />
+        <PieceImage pieceType={pieceType} />
       </View>
     </PanGestureHandler>
   );
@@ -270,7 +264,7 @@ const PieceComponent = memo(({ piece, onGestureEvent, onHandlerStateChange, onPr
 
 PieceComponent.displayName = 'PieceComponent';
 
-// *** MAIN SQUARE COMPONENT - STANDALONE VERSION ***
+// *** MAIN SQUARE COMPONENT - HEAVILY OPTIMIZED ***
 const Square = memo(({ 
   piece, 
   row, 
@@ -284,34 +278,33 @@ const Square = memo(({
   isLastMoveFrom, 
   isLastMoveTo,
   isHintSquare = false,
-  isCircled = false, // 🎯 NEW PROP
+  isCircled = false,
   currentSquareSize,
   readonly = false,
-  // 🎯 NEW PROPS - Accept theme directly
-  boardTheme = null // Accept boardTheme as prop instead of using context
+  boardTheme = null
 }) => {
   
-  // 🎯 USE PROP OR DEFAULT THEME
   const activeTheme = boardTheme || DEFAULT_BOARD_THEME;
+  const isBlack = (row + col) % 2 !== 0;
 
+  // *** OPTIMIZED BACKGROUND COLOR ***
   const backgroundColor = useMemo(() => {
-    const isBlack = (row + col) % 2 !== 0;
     const normalColor = isBlack ? activeTheme.dark : activeTheme.light;
     
-    if (isHintSquare) {
-      if (activeTheme.hintLightBg && activeTheme.hintDarkBg) {
-        return isBlack ? activeTheme.hintDarkBg : activeTheme.hintLightBg;
-      }
-      return isBlack ? '#FF8C69' : '#FFEFD5';
+    if (isHintSquare && activeTheme.hintLightBg && activeTheme.hintDarkBg) {
+      return isBlack ? activeTheme.hintDarkBg : activeTheme.hintLightBg;
     }
     
     return normalColor;
-  }, [row, col, activeTheme, isHintSquare]);
+  }, [isBlack, activeTheme, isHintSquare]);
 
+  // *** OPTIMIZED OVERLAY STYLES WITH CACHING ***
   const overlayStyles = useMemo(() => {
-    // Skip complex calculations in readonly mode if not needed
-    if (readonly && !isLastMoveFrom && !isLastMoveTo && !isHintSquare) {
-      return { highlight: null, lastMoveFrom: null, lastMoveTo: null, dot: null };
+    // Create a cache key from state
+    const cacheKey = `${isHighlighted}-${isLastMoveFrom}-${isLastMoveTo}-${isMovePossible}-${readonly}`;
+    
+    if (cachedOverlayStyles.has(cacheKey)) {
+      return cachedOverlayStyles.get(cacheKey);
     }
 
     const styles = {
@@ -322,61 +315,53 @@ const Square = memo(({
     };
 
     if (isHighlighted && !readonly) {
-      styles.highlight = {
+      styles.highlight = getCachedOverlayStyle('highlight', {
         backgroundColor: activeTheme.highlighted,
-      };
+      });
     }
     if (isLastMoveFrom) {
-      styles.lastMoveFrom = {
+      styles.lastMoveFrom = getCachedOverlayStyle('lastMoveFrom', {
         backgroundColor: activeTheme.moveFrom,
         opacity: 0.7,
-      };
+      });
     }
     if (isLastMoveTo) {
-      styles.lastMoveTo = {
+      styles.lastMoveTo = getCachedOverlayStyle('lastMoveTo', {
         backgroundColor: activeTheme.moveTo,
         opacity: 0.4,
-      };
+      });
     }
     if (isMovePossible && !readonly) {
-      styles.dot = {
+      styles.dot = getCachedOverlayStyle('dot', {
         width: '30%',
         height: '30%',
         borderRadius: 100,
         backgroundColor: activeTheme.dot || 'rgba(0, 0, 0, 0.5)',
-      };
+      });
     }
 
+    cachedOverlayStyles.set(cacheKey, styles);
     return styles;
   }, [activeTheme, isHighlighted, isLastMoveFrom, isLastMoveTo, isMovePossible, readonly]);
 
+  // *** STABLE CALLBACKS ***
   const handlePress = useCallback(() => {
     if (!readonly) {
       onSquarePress(square);
     }
   }, [onSquarePress, square, readonly]);
 
-  const renderPiece = useCallback(() => {
-    if (!piece) return null;
-    
-    // Use simpler component in readonly mode
-    if (readonly) {
-      return <ReadonlyPieceComponent piece={piece} />;
-    }
-    
-    return (
-      <PieceComponent
-        piece={piece}
-        onGestureEvent={onGestureEvent}
-        onHandlerStateChange={onHandlerStateChange}
-        onPress={handlePress}
-      />
-    );
-  }, [piece, onGestureEvent, onHandlerStateChange, handlePress, readonly]);
+  const handleGestureEvent = useMemo(() => 
+    onGestureEvent(square), 
+    [onGestureEvent, square]
+  );
 
-  const isBlack = (row + col) % 2 !== 0;
+  const handleHandlerStateChange = useMemo(() => 
+    onHandlerStateChange(square), 
+    [onHandlerStateChange, square]
+  );
 
-  // In readonly mode, use View instead of Pressable for better performance
+  // *** OPTIMIZED RENDER ***
   const SquareWrapper = readonly ? View : Pressable;
   const wrapperProps = readonly ? {} : { onPress: handlePress };
 
@@ -388,6 +373,7 @@ const Square = memo(({
         { backgroundColor }
       ]}
     >
+      {/* Only render overlays if they exist */}
       {overlayStyles.lastMoveFrom && (
         <View style={[styles.overlay, overlayStyles.lastMoveFrom]} />
       )}
@@ -398,13 +384,21 @@ const Square = memo(({
         <View style={[styles.overlay, overlayStyles.highlight]} />
       )}
       
-      {renderPiece()}
-      
-      {/* 🎯 NEW: Circle indicator for Hand & Brain mode */}
-      {isCircled && piece && (
-        <CircleIndicator />
+      {/* Render piece if exists */}
+      {piece && (
+        <PieceComponent
+          piece={piece}
+          onGestureEvent={handleGestureEvent}
+          onHandlerStateChange={handleHandlerStateChange}
+          onPress={handlePress}
+          readonly={readonly}
+        />
       )}
       
+      {/* Circle indicator */}
+      {isCircled && piece && <CircleIndicator />}
+      
+      {/* Hint indicator */}
       {isHintSquare && (
         <AnimatedHint 
           boardTheme={activeTheme} 
@@ -412,6 +406,7 @@ const Square = memo(({
         />
       )}
       
+      {/* Move dot */}
       {overlayStyles.dot && (
         <View style={styles.dotContainer}>
           <View style={overlayStyles.dot} />
@@ -420,31 +415,45 @@ const Square = memo(({
     </SquareWrapper>
   );
 }, (prevProps, nextProps) => {
-  const essentialProps = [
-    'isHighlighted', 'isMovePossible', 'isLastMoveFrom', 'isLastMoveTo',
-    'isHintSquare', 'isCircled', 'row', 'col', 'currentSquareSize', 'readonly', 'boardTheme'
-  ];
-
-  for (const prop of essentialProps) {
-    if (prevProps[prop] !== nextProps[prop]) {
-      return false;
-    }
-  }
-
+  // Optimized comparison - check only what really matters
+  
+  // Quick check for piece changes
   if (prevProps.piece !== nextProps.piece) {
-    if (!prevProps.piece && !nextProps.piece) {
-      return true;
-    }
-    if (!prevProps.piece || !nextProps.piece) {
-      return false;
-    }
+    if (!prevProps.piece && !nextProps.piece) return true;
+    if (!prevProps.piece || !nextProps.piece) return false;
     if (prevProps.piece.type !== nextProps.piece.type || 
-        prevProps.piece.color !== nextProps.piece.color) {
-      return false;
-    }
+        prevProps.piece.color !== nextProps.piece.color) return false;
   }
 
-  if (prevProps.square !== nextProps.square) {
+  // Check visual state changes
+  if (
+    prevProps.isHighlighted !== nextProps.isHighlighted ||
+    prevProps.isMovePossible !== nextProps.isMovePossible ||
+    prevProps.isLastMoveFrom !== nextProps.isLastMoveFrom ||
+    prevProps.isLastMoveTo !== nextProps.isLastMoveTo ||
+    prevProps.isHintSquare !== nextProps.isHintSquare ||
+    prevProps.isCircled !== nextProps.isCircled
+  ) {
+    return false;
+  }
+
+  // Check structural changes
+  if (
+    prevProps.row !== nextProps.row ||
+    prevProps.col !== nextProps.col ||
+    prevProps.square !== nextProps.square ||
+    prevProps.readonly !== nextProps.readonly ||
+    prevProps.boardTheme !== nextProps.boardTheme
+  ) {
+    return false;
+  }
+
+  // Check callback changes (these should be stable but check anyway)
+  if (
+    prevProps.onSquarePress !== nextProps.onSquarePress ||
+    prevProps.onGestureEvent !== nextProps.onGestureEvent ||
+    prevProps.onHandlerStateChange !== nextProps.onHandlerStateChange
+  ) {
     return false;
   }
 
@@ -453,7 +462,7 @@ const Square = memo(({
 
 Square.displayName = 'Square';
 
-// *** STYLES REMAIN THE SAME ***
+// *** STYLES ***
 const styles = StyleSheet.create({
   square: {
     flex: 1,
@@ -512,7 +521,6 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: 'rgba(255, 107, 53, 0.3)',
   },
-  // 🎯 NEW STYLES: Circle indicator for Hand & Brain mode
   circleIndicator: {
     position: 'absolute',
     top: 0,
@@ -547,5 +555,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 230, 118, 0.05)',
   },
 });
+
+// Clear cache periodically to prevent memory leaks
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    if (cachedOverlayStyles.size > 100) {
+      cachedOverlayStyles.clear();
+    }
+  }, 60000); // Clear every minute if cache grows too large
+}
 
 export default Square;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useEffect, useReducer } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -31,7 +31,79 @@ const DEFAULT_TEXT_COLORS = {
   subtitleText: '#6B7280'
 };
 
-// *** LOADING BOARD ROW COMPONENT ***
+// *** BOARD STATE REDUCER - Centralized state management ***
+const BOARD_ACTIONS = {
+  SELECT_SQUARE: 'SELECT_SQUARE',
+  CLEAR_SELECTION: 'CLEAR_SELECTION',
+  SET_HINT: 'SET_HINT',
+  CLEAR_HINT: 'CLEAR_HINT',
+  SET_LAST_MOVE: 'SET_LAST_MOVE',
+  SHOW_PROMOTION: 'SHOW_PROMOTION',
+  HIDE_PROMOTION: 'HIDE_PROMOTION',
+  RESET_STATE: 'RESET_STATE'
+};
+
+const boardReducer = (state, action) => {
+  switch (action.type) {
+    case BOARD_ACTIONS.SELECT_SQUARE:
+      return {
+        ...state,
+        selectedSquare: action.square,
+        validMoves: action.validMoves || []
+      };
+    case BOARD_ACTIONS.CLEAR_SELECTION:
+      return {
+        ...state,
+        selectedSquare: null,
+        validMoves: []
+      };
+    case BOARD_ACTIONS.SET_HINT:
+      return {
+        ...state,
+        hintSquare: action.square
+      };
+    case BOARD_ACTIONS.CLEAR_HINT:
+      return {
+        ...state,
+        hintSquare: null
+      };
+    case BOARD_ACTIONS.SET_LAST_MOVE:
+      return {
+        ...state,
+        lastMoveFrom: action.from,
+        lastMoveTo: action.to
+      };
+    case BOARD_ACTIONS.SHOW_PROMOTION:
+      return {
+        ...state,
+        showPromotion: true,
+        promotionFrom: action.from,
+        promotionTo: action.to
+      };
+    case BOARD_ACTIONS.HIDE_PROMOTION:
+      return {
+        ...state,
+        showPromotion: false,
+        promotionFrom: '',
+        promotionTo: ''
+      };
+    case BOARD_ACTIONS.RESET_STATE:
+      return {
+        selectedSquare: null,
+        validMoves: [],
+        lastMoveFrom: action.lastMoveFrom || null,
+        lastMoveTo: action.lastMoveTo || null,
+        hintSquare: null,
+        showPromotion: false,
+        promotionFrom: '',
+        promotionTo: ''
+      };
+    default:
+      return state;
+  }
+};
+
+// *** LOADING BOARD ROW COMPONENT - No changes needed ***
 const LoadingBoardRow = React.memo(({ 
   rowIndex, 
   perspective, 
@@ -90,95 +162,49 @@ const LoadingBoardRow = React.memo(({
 
 LoadingBoardRow.displayName = 'LoadingBoardRow';
 
-// *** READONLY BOARD ROW COMPONENT ***
-const ReadonlyBoardRow = React.memo(({ 
+// *** OPTIMIZED BOARD ROW WITH STABLE KEYS ***
+const OptimizedBoardRow = React.memo(({ 
   row, 
   rowIndex, 
-  lastMoveFrom, 
-  lastMoveTo, 
+  handlers, // Stable handlers object
+  boardState, // Current board state
   perspective, 
-  hintSquare,
-  circledSquares,
-  currentSquareSize,
-  boardTheme
-}) => {
-  return (
-    <View style={styles.boardRow}>
-      {row.map((square, colIndex) => {
-        const squareNotation = perspective === 'white'
-          ? `${String.fromCharCode(97 + colIndex)}${8 - rowIndex}`
-          : `${String.fromCharCode(104 - colIndex)}${rowIndex + 1}`;
-
-        return (
-          <Square
-            key={`${rowIndex}-${colIndex}`}
-            piece={square}
-            row={rowIndex}
-            col={colIndex}
-            square={squareNotation}
-            isHighlighted={false}
-            isMovePossible={false}
-            onSquarePress={() => {}}
-            isLastMoveFrom={squareNotation === lastMoveFrom}
-            isLastMoveTo={squareNotation === lastMoveTo}
-            isHintSquare={squareNotation === hintSquare}
-            isCircled={circledSquares?.includes(squareNotation)}
-            onGestureEvent={() => {}}
-            onHandlerStateChange={() => {}}
-            perspective={perspective}
-            currentSquareSize={currentSquareSize}
-            readonly={true}
-            boardTheme={boardTheme}
-          />
-        );
-      })}
-    </View>
-  );
-});
-
-ReadonlyBoardRow.displayName = 'ReadonlyBoardRow';
-
-// *** NORMAL BOARD ROW COMPONENT ***
-const BoardRow = React.memo(({ 
-  row, 
-  rowIndex, 
-  onSquarePress, 
-  onGestureEvent, 
-  onHandlerStateChange, 
-  selectedSquare, 
-  validMoves, 
-  lastMoveFrom, 
-  lastMoveTo, 
-  perspective, 
-  hintSquare,
   circledSquares,
   currentSquareSize,
   boardTheme,
   readonly
 }) => {
+  // Pre-calculate square notations once
+  const squareNotations = useMemo(() => {
+    return Array.from({ length: 8 }, (_, colIndex) => {
+      return perspective === 'white'
+        ? `${String.fromCharCode(97 + colIndex)}${8 - rowIndex}`
+        : `${String.fromCharCode(104 - colIndex)}${rowIndex + 1}`;
+    });
+  }, [rowIndex, perspective]);
+
   return (
     <View style={styles.boardRow}>
       {row.map((square, colIndex) => {
-        const squareNotation = perspective === 'white'
-          ? `${String.fromCharCode(97 + colIndex)}${8 - rowIndex}`
-          : `${String.fromCharCode(104 - colIndex)}${rowIndex + 1}`;
-
+        const squareNotation = squareNotations[colIndex];
+        
+        // Only pass necessary props to Square
         return (
           <Square
-            key={`${rowIndex}-${colIndex}`}
+            key={`${squareNotation}`} // Use stable key
             piece={square}
             row={rowIndex}
             col={colIndex}
             square={squareNotation}
-            isHighlighted={selectedSquare === squareNotation}
-            isMovePossible={validMoves.includes(squareNotation)}
-            onSquarePress={onSquarePress}
-            isLastMoveFrom={squareNotation === lastMoveFrom}
-            isLastMoveTo={squareNotation === lastMoveTo}
-            isHintSquare={squareNotation === hintSquare}
+            isHighlighted={boardState.selectedSquare === squareNotation}
+            isMovePossible={boardState.validMoves.includes(squareNotation)}
+            onSquarePress={handlers.onSquarePress}
+            isLastMoveFrom={boardState.lastMoveFrom === squareNotation}
+            isLastMoveTo={boardState.lastMoveTo === squareNotation}
+            isHintSquare={boardState.hintSquare === squareNotation}
             isCircled={circledSquares?.includes(squareNotation)}
-            onGestureEvent={onGestureEvent(squareNotation)}
-            onHandlerStateChange={onHandlerStateChange(squareNotation)}
+            onGestureEvent={handlers.onGestureEvent}
+            onHandlerStateChange={handlers.onHandlerStateChange}
             perspective={perspective}
             currentSquareSize={currentSquareSize}
             boardTheme={boardTheme}
@@ -190,9 +216,9 @@ const BoardRow = React.memo(({
   );
 });
 
-BoardRow.displayName = 'BoardRow';
+OptimizedBoardRow.displayName = 'OptimizedBoardRow';
 
-// *** MAIN CHESSBOARD COMPONENT - ENHANCED WITH HAND & BRAIN CONTROL ***
+// *** MAIN CHESSBOARD COMPONENT - OPTIMIZED ***
 const SmoothChessboard = forwardRef((props, ref) => {
   const {
     fen: initialFen,
@@ -205,8 +231,8 @@ const SmoothChessboard = forwardRef((props, ref) => {
     arrows = [],
     expectedMove,
     circledSquares = [],
-    restrictToCircled = false, // 🎯 NEW PROP: Control if only circled pieces can move
-    onRestrictedMoveAttempt, // 🎯 NEW PROP: Callback when trying to move non-circled piece
+    restrictToCircled = false,
+    onRestrictedMoveAttempt,
     boardTheme = null,
     textColors = null,
     colors = null,
@@ -216,326 +242,236 @@ const SmoothChessboard = forwardRef((props, ref) => {
     readonly = false
   } = props;
 
-  // 🎯 USE PROVIDED THEME OR DEFAULTS
+  // Use provided theme or defaults
   const activeBoardTheme = boardTheme || DEFAULT_BOARD_THEME;
   const activeTextColors = textColors || DEFAULT_TEXT_COLORS;
 
-  // *** STATE ***
-  const [chess, setChess] = useState(() => {
-    const initialChess = new Chess(initialFen);
-    console.log('🎲 [Chessboard] Initial chess created:', {
-      fen: initialChess.fen().split(' ')[0],
-      turn: initialChess.turn()
-    });
-    return initialChess;
+  // *** USE REDUCER FOR BOARD STATE ***
+  const [boardState, dispatch] = useReducer(boardReducer, {
+    selectedSquare: null,
+    validMoves: [],
+    lastMoveFrom: propLastMoveFrom || null,
+    lastMoveTo: propLastMoveTo || null,
+    hintSquare: null,
+    showPromotion: false,
+    promotionFrom: '',
+    promotionTo: ''
   });
-  const [selectedSquare, setSelectedSquare] = useState(null);
-  const [validMoves, setValidMoves] = useState([]);
-  const [lastMoveFrom, setLastMoveFrom] = useState(propLastMoveFrom || null);
-  const [lastMoveTo, setLastMoveTo] = useState(propLastMoveTo || null);
-  const [showPromotion, setShowPromotion] = useState(false);
-  const [promotionFrom, setPromotionFrom] = useState('');
-  const [promotionTo, setPromotionTo] = useState('');
-  const [hintSquare, setHintSquare] = useState(null);
-  const [boardDimensions, setBoardDimensions] = useState({ width: 0, height: 0 });
 
-  // *** REFS ***
-  const panValues = useRef({});
-  const lastMoveTime = useRef(0);
-  const moveDebounceDelay = 150;
-  const boardRef = useRef(null);
+  // *** CHESS INSTANCE IN REF - Avoid rerender on chess changes ***
+  const chessRef = useRef(new Chess(initialFen));
+  const [boardArray, setBoardArray] = useState(() => {
+    const array = chessRef.current.board();
+    if (perspective === 'black') {
+      array.reverse();
+      for (let row of array) {
+        row.reverse();
+      }
+    }
+    return array;
+  });
+
+  // *** OTHER REFS ***
+  const panValuesRef = useRef({});
+  const lastMoveTimeRef = useRef(0);
+  const boardDimensionsRef = useRef({ width: 0, height: 0 });
+  const [currentSquareSize, setCurrentSquareSize] = useState(0);
   const prevFenRef = useRef(initialFen);
-  const chessRef = useRef();
-  
-  if (!chessRef.current) {
-    chessRef.current = chess;
-  }
 
-  // Calculate square size based on board dimensions
-  const currentSquareSize = useMemo(() => {
-    if (!boardDimensions.width || !boardDimensions.height) return 0;
-    const size = Math.min(boardDimensions.width, boardDimensions.height);
-    return Math.floor(size / 8);
-  }, [boardDimensions]);
-
-  // Handle board layout to get dimensions
+  // *** HANDLE BOARD LAYOUT ***
   const handleBoardLayout = useCallback((event) => {
     const { width, height } = event.nativeEvent.layout;
-    setBoardDimensions({ width, height });
+    boardDimensionsRef.current = { width, height };
+    const size = Math.floor(Math.min(width, height) / 8);
+    setCurrentSquareSize(size);
   }, []);
 
-  // *** EFFECT TO UPDATE CHESS POSITION ***
+  // *** UPDATE CHESS POSITION - Only when FEN changes ***
   useEffect(() => {
-    console.log('🔍 [Chessboard] useEffect FEN check:', {
-      initialFen: initialFen,
-      prevFen: prevFenRef.current,
-      changed: initialFen !== prevFenRef.current
-    });
-    
     if (initialFen && initialFen !== prevFenRef.current) {
-      console.log('🔄 [Chessboard] Updating chess position:', {
-        from: prevFenRef.current?.split(' ')[0],
-        to: initialFen.split(' ')[0],
-        turn: initialFen.split(' ')[1]
+      chessRef.current = new Chess(initialFen);
+      const array = chessRef.current.board();
+      if (perspective === 'black') {
+        array.reverse();
+        for (let row of array) {
+          row.reverse();
+        }
+      }
+      setBoardArray(array);
+      dispatch({ 
+        type: BOARD_ACTIONS.RESET_STATE, 
+        lastMoveFrom: propLastMoveFrom,
+        lastMoveTo: propLastMoveTo
       });
-      
-      const newChess = new Chess(initialFen);
-      setChess(newChess);
-      chessRef.current = newChess;
-      setSelectedSquare(null);
-      setValidMoves([]);
-      setHintSquare(null);
       prevFenRef.current = initialFen;
-      
-      console.log('✅ [Chessboard] Chess position updated, new turn:', newChess.turn());
     }
-  }, [initialFen]);
+  }, [initialFen, perspective, propLastMoveFrom, propLastMoveTo]);
 
+  // *** UPDATE LAST MOVE FROM PROPS ***
   useEffect(() => {
-    chessRef.current = chess;
-  }, [chess]);
-
-  // *** EFFECT TO UPDATE LAST MOVE ***
-  useEffect(() => {
-    setLastMoveFrom(propLastMoveFrom);
-    setLastMoveTo(propLastMoveTo);
+    if (propLastMoveFrom !== boardState.lastMoveFrom || propLastMoveTo !== boardState.lastMoveTo) {
+      dispatch({ 
+        type: BOARD_ACTIONS.SET_LAST_MOVE, 
+        from: propLastMoveFrom, 
+        to: propLastMoveTo 
+      });
+    }
   }, [propLastMoveFrom, propLastMoveTo]);
 
-  // *** IMPERATIVE HANDLE FOR REF ***
+  // *** IMPERATIVE HANDLE ***
   useImperativeHandle(ref, () => ({
     highlight: (square) => {
-      console.log('🔍 Highlighting square:', square);
-      
-      if (!square || typeof square !== 'string') {
+      if (!square || typeof square !== 'string' || !/^[a-h][1-8]$/.test(square)) {
         console.warn('Invalid square for highlight:', square);
         return;
       }
-      
-      if (!/^[a-h][1-8]$/.test(square)) {
-        console.warn('Invalid square format for highlight:', square);
-        return;
-      }
-      
-      setHintSquare(square);
-      
+      dispatch({ type: BOARD_ACTIONS.SET_HINT, square });
       setTimeout(() => {
-        setHintSquare(prevHint => prevHint === square ? null : prevHint);
+        dispatch({ type: BOARD_ACTIONS.CLEAR_HINT });
       }, 3000);
     },
-    
     clearHighlight: () => {
-      setHintSquare(null);
+      dispatch({ type: BOARD_ACTIONS.CLEAR_HINT });
     },
-    
     setFen: (fen) => {
-      const newChess = new Chess(fen);
-      setChess(newChess);
-      chessRef.current = newChess;
-      setSelectedSquare(null);
-      setValidMoves([]);
-      setLastMoveFrom(null);
-      setLastMoveTo(null);
-      setHintSquare(null);
+      chessRef.current = new Chess(fen);
+      const array = chessRef.current.board();
+      if (perspective === 'black') {
+        array.reverse();
+        for (let row of array) {
+          row.reverse();
+        }
+      }
+      setBoardArray(array);
+      dispatch({ type: BOARD_ACTIONS.RESET_STATE });
     }
-  }), []);
+  }), [perspective]);
 
-  // *** HANDLE MOVE ***
+  // *** OPTIMIZED HANDLE MOVE - Using refs ***
   const handleMove = useCallback((from, to, promotion) => {
     const now = Date.now();
-    if (now - lastMoveTime.current < moveDebounceDelay) {
-      return;
-    }
-    lastMoveTime.current = now;
-
-    const currentChess = chessRef.current;
-    console.log('🎯 [Chessboard] handleMove called:', {
-      from, to, promotion,
-      currentTurn: currentChess.turn(),
-      fen: currentChess.fen().split(' ')[0]
-    });
+    if (now - lastMoveTimeRef.current < 150) return;
+    lastMoveTimeRef.current = now;
 
     try {
+      const currentChess = chessRef.current;
       const testChess = new Chess(currentChess.fen());
       const move = testChess.move({ from, to, promotion });
       
       if (move) {
-        const newChess = new Chess(currentChess.fen());
-        const actualMove = newChess.move({ from, to, promotion });
-        
-        if (actualMove) {
-          console.log('✅ [Chessboard] Move executed successfully:', {
-            move: actualMove.san,
-            newTurn: newChess.turn(),
-            newFen: newChess.fen().split(' ')[0]
-          });
-          
-          setChess(newChess);
-          chessRef.current = newChess;
-          onMove?.(from, to, promotion);
-          
-          setLastMoveFrom(from);
-          setLastMoveTo(to);
-          
-          setSelectedSquare(null);
-          setValidMoves([]);
-          setHintSquare(null);
+        chessRef.current.move({ from, to, promotion });
+        const array = chessRef.current.board();
+        if (perspective === 'black') {
+          array.reverse();
+          for (let row of array) {
+            row.reverse();
+          }
         }
+        setBoardArray(array);
+        onMove?.(from, to, promotion);
+        
+        dispatch({ type: BOARD_ACTIONS.SET_LAST_MOVE, from, to });
+        dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
       } else {
-        console.warn('❌ [Chessboard] Invalid move attempted:', { from, to, promotion });
-        setSelectedSquare(null);
-        setValidMoves([]);
+        dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
       }
     } catch (e) {
-      console.warn('❌ [Chessboard] Move error:', e);
-      setSelectedSquare(null);
-      setValidMoves([]);
+      console.warn('Move error:', e);
+      dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
     }
-  }, []);
-
-  // *** HANDLE PAWN PROMOTION ***
-  const handlePawnPromotion = useCallback((from, to) => {
-    setShowPromotion(true);
-    setPromotionFrom(from);
-    setPromotionTo(to);
-  }, []);
+  }, [onMove, perspective]);
 
   // *** HANDLE PROMOTION SELECT ***
   const handlePromotionSelect = useCallback((piece) => {
-    handleMove(promotionFrom, promotionTo, piece);
-    setShowPromotion(false);
-    setPromotionFrom('');
-    setPromotionTo('');
-  }, [handleMove, promotionFrom, promotionTo]);
+    handleMove(boardState.promotionFrom, boardState.promotionTo, piece);
+    dispatch({ type: BOARD_ACTIONS.HIDE_PROMOTION });
+  }, [handleMove, boardState.promotionFrom, boardState.promotionTo]);
 
-  // *** 🎯 CHECK IF PIECE CAN BE SELECTED (Hand & Brain mode) ***
+  // *** CHECK IF PIECE CAN BE SELECTED ***
   const canSelectPiece = useCallback((square) => {
-    // If restrictToCircled is true and we have circled squares
     if (restrictToCircled && circledSquares && circledSquares.length > 0) {
       return circledSquares.includes(square);
     }
-    // If not restricted or no circles, allow all
     return true;
   }, [restrictToCircled, circledSquares]);
 
-  // *** SQUARE PRESS HANDLER - ENHANCED WITH RESTRICTION CHECK ***
+  // *** OPTIMIZED SQUARE PRESS HANDLER ***
   const onSquarePress = useCallback((square) => {
     if (isLoading || readonly) return;
 
     const currentChess = chessRef.current;
     const currentTurn = currentChess.turn();
     const clickedPiece = currentChess.get(square);
-    const selectedPiece = selectedSquare ? currentChess.get(selectedSquare) : null;
+    const selectedPiece = boardState.selectedSquare ? currentChess.get(boardState.selectedSquare) : null;
 
-    console.log('👆 [Chessboard] Square pressed:', {
-      square,
-      currentTurn,
-      clickedPiece: clickedPiece ? `${clickedPiece.color}${clickedPiece.type}` : 'empty',
-      selectedSquare,
-      canSelect: canSelectPiece(square),
-      restrictToCircled,
-      isCircled: circledSquares?.includes(square),
-      fen: currentChess.fen().split(' ')[0]
-    });
-
-    // CASE 1: Clicking the same piece - toggle selection
-    if (selectedSquare === square) {
-      console.log('🔄 [Chessboard] Toggle selection - deselecting');
-      setSelectedSquare(null);
-      setValidMoves([]);
+    // Toggle selection
+    if (boardState.selectedSquare === square) {
+      dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
       return;
     }
 
-    // CASE 2: We have a selected piece
-    if (selectedSquare && selectedPiece) {
-      // Check if clicking on another of our pieces (switching selection)
+    // We have a selected piece
+    if (boardState.selectedSquare && selectedPiece) {
+      // Switching to another piece
       if (clickedPiece && clickedPiece.color === currentTurn) {
-        // 🎯 CHECK RESTRICTION for the new piece
         if (!canSelectPiece(square)) {
-          console.log('🚫 [Chessboard] Cannot select non-circled piece:', square);
-          if (onRestrictedMoveAttempt) {
-            onRestrictedMoveAttempt(square, 'select');
-          }
-          // Optionally vibrate to indicate restriction
+          onRestrictedMoveAttempt?.(square, 'select');
           Vibration.vibrate(100);
           return;
         }
-        
-        console.log('🔄 [Chessboard] Switching to different piece:', square);
         const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
-        setValidMoves(moves);
-        setSelectedSquare(square);
+        dispatch({ type: BOARD_ACTIONS.SELECT_SQUARE, square, validMoves: moves });
         return;
       }
       
-      // Check if it's a pawn promotion
+      // Check pawn promotion
       if (selectedPiece.type === 'p' && 
-         ((selectedPiece.color === 'b' && selectedSquare[1] === '2' && square[1] === '1') || 
-          (selectedPiece.color === 'w' && selectedSquare[1] === '7' && square[1] === '8'))) {
-        console.log('👑 [Chessboard] Pawn promotion detected');
-        handlePawnPromotion(selectedSquare, square);
+         ((selectedPiece.color === 'b' && boardState.selectedSquare[1] === '2' && square[1] === '1') || 
+          (selectedPiece.color === 'w' && boardState.selectedSquare[1] === '7' && square[1] === '8'))) {
+        dispatch({ 
+          type: BOARD_ACTIONS.SHOW_PROMOTION, 
+          from: boardState.selectedSquare, 
+          to: square 
+        });
         return;
       }
       
-      // Attempt to move to target square
-      console.log('🎯 [Chessboard] Attempting move from', selectedSquare, 'to', square);
-      handleMove(selectedSquare, square);
+      // Attempt move
+      handleMove(boardState.selectedSquare, square);
       return;
     }
 
-    // CASE 3: First piece selection
+    // First piece selection
     if (clickedPiece && clickedPiece.color === currentTurn) {
-      // 🎯 CHECK RESTRICTION for initial selection
       if (!canSelectPiece(square)) {
-        console.log('🚫 [Chessboard] Cannot select non-circled piece:', square);
-        if (onRestrictedMoveAttempt) {
-          onRestrictedMoveAttempt(square, 'select');
-        }
-        // Vibrate to indicate restriction
+        onRestrictedMoveAttempt?.(square, 'select');
         Vibration.vibrate(100);
         return;
       }
-      
-      console.log('✅ [Chessboard] Selecting piece:', square, `(${clickedPiece.color}${clickedPiece.type})`);
       const moves = currentChess.moves({ square, verbose: true }).map(move => move.to);
-      console.log('📋 [Chessboard] Available moves:', moves);
-      setValidMoves(moves);
-      setSelectedSquare(square);
+      dispatch({ type: BOARD_ACTIONS.SELECT_SQUARE, square, validMoves: moves });
     } else {
-      console.log('❌ [Chessboard] Cannot select:', {
-        reason: clickedPiece ? 'wrong color' : 'empty square',
-        pieceColor: clickedPiece?.color,
-        currentTurn
-      });
-      setSelectedSquare(null);
-      setValidMoves([]);
+      dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
     }
-  }, [isLoading, readonly, selectedSquare, handlePawnPromotion, handleMove, canSelectPiece, restrictToCircled, circledSquares, onRestrictedMoveAttempt]);
+  }, [isLoading, readonly, boardState.selectedSquare, handleMove, canSelectPiece, onRestrictedMoveAttempt]);
 
-  // *** GESTURE HANDLERS - ENHANCED WITH RESTRICTION CHECK ***
-  const onGestureEvent = useCallback((square) => ({ nativeEvent }) => {
+  // *** STABLE GESTURE HANDLERS ***
+  const onGestureEvent = useCallback(({ nativeEvent }, square) => {
     if (isLoading || readonly || !currentSquareSize) return;
+    if (!canSelectPiece(square)) return;
     
-    // 🎯 CHECK RESTRICTION for drag start
-    if (!canSelectPiece(square)) {
-      return; // Don't allow dragging non-circled pieces
-    }
-    
-    panValues.current[square] = {
+    panValuesRef.current[square] = {
       x: nativeEvent.translationX,
       y: nativeEvent.translationY
     };
   }, [isLoading, readonly, currentSquareSize, canSelectPiece]);
 
-  const onHandlerStateChange = useCallback((square) => ({ nativeEvent }) => {
+  const onHandlerStateChange = useCallback(({ nativeEvent }, square) => {
     if (isLoading || readonly || !currentSquareSize) return;
     
-    // 🎯 CHECK RESTRICTION at drag start
     if (nativeEvent.state === State.BEGAN) {
       if (!canSelectPiece(square)) {
-        console.log('🚫 [Chessboard] Cannot drag non-circled piece:', square);
-        if (onRestrictedMoveAttempt) {
-          onRestrictedMoveAttempt(square, 'drag');
-        }
+        onRestrictedMoveAttempt?.(square, 'drag');
         Vibration.vibrate(100);
         return;
       }
@@ -548,75 +484,43 @@ const SmoothChessboard = forwardRef((props, ref) => {
       const toCol = col + Math.round(nativeEvent.translationX / currentSquareSize);
       const toRow = row + Math.round(nativeEvent.translationY / currentSquareSize);
 
-      panValues.current[square] = { x: 0, y: 0 };
+      panValuesRef.current[square] = { x: 0, y: 0 };
 
       if (toCol >= 0 && toCol < 8 && toRow >= 0 && toRow < 8) {
         const to = perspective === 'white'
           ? `${String.fromCharCode(97 + toCol)}${8 - toRow}`
           : `${String.fromCharCode(104 - toCol)}${toRow + 1}`;
 
-        if (expectedMove === `${selectedSquare}${to}`) {
+        if (boardState.validMoves.includes(to)) {
           const currentChess = chessRef.current;
-          const piece = currentChess.get(selectedSquare);
+          const piece = currentChess.get(boardState.selectedSquare);
           if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
             Vibration.vibrate(30);
-            handlePawnPromotion(selectedSquare, to);
+            dispatch({ 
+              type: BOARD_ACTIONS.SHOW_PROMOTION, 
+              from: boardState.selectedSquare, 
+              to 
+            });
           } else {
             Vibration.vibrate(50);
-            handleMove(selectedSquare, to);
+            handleMove(boardState.selectedSquare, to);
           }
         } else {
-          if (validMoves.includes(to)) {
-            const currentChess = chessRef.current;
-            const piece = currentChess.get(selectedSquare);
-            if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
-              Vibration.vibrate(30);
-              handlePawnPromotion(selectedSquare, to);
-            } else {
-              Vibration.vibrate(50);
-              handleMove(selectedSquare, to);
-            }
-          } else {
-            Vibration.vibrate(80);
-          }
+          Vibration.vibrate(80);
         }
       } else {
         Vibration.vibrate(80);
       }
-      setSelectedSquare(null);
+      dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
     }
-  }, [isLoading, perspective, currentSquareSize, selectedSquare, validMoves, expectedMove, handleMove, handlePawnPromotion, canSelectPiece, onRestrictedMoveAttempt]);
+  }, [isLoading, readonly, perspective, currentSquareSize, boardState.selectedSquare, boardState.validMoves, handleMove, canSelectPiece, onRestrictedMoveAttempt]);
 
-  // *** PARSE BEST MOVE ***
-  const parseBestMove = useCallback(() => {
-    if (!bestMove || typeof bestMove !== 'string' || bestMove.length < 4) {
-      return null;
-    }
-
-    const from = bestMove.slice(0, 2);
-    const to = bestMove.slice(2, 4);
-    
-    const isValidSquare = (square) => {
-      return /^[a-h][1-8]$/.test(square);
-    };
-
-    if (!isValidSquare(from) || !isValidSquare(to)) {
-      return null;
-    }
-
-    return { from, to };
-  }, [bestMove]);
-
-  // *** GET MOVING PIECE ***
-  const getMovingPiece = useCallback((from) => {
-    try {
-      const currentChess = chessRef.current;
-      const piece = currentChess.get(from);
-      return piece ? piece.type : null;
-    } catch (error) {
-      return null;
-    }
-  }, []);
+  // *** CREATE STABLE HANDLERS OBJECT ***
+  const handlers = useMemo(() => ({
+    onSquarePress,
+    onGestureEvent: (square) => (event) => onGestureEvent(event, square),
+    onHandlerStateChange: (square) => (event) => onHandlerStateChange(event, square)
+  }), [onSquarePress, onGestureEvent, onHandlerStateChange]);
 
   // *** MEMOIZED VALUES ***
   const files = useMemo(() => 
@@ -631,31 +535,23 @@ const SmoothChessboard = forwardRef((props, ref) => {
       : ['1', '2', '3', '4', '5', '6', '7', '8']
   , [perspective]);
 
-  const bestMoveData = useMemo(() => parseBestMove(), [parseBestMove]);
-  const movingPiece = useMemo(() => bestMoveData ? getMovingPiece(bestMoveData.from) : null, [bestMoveData, getMovingPiece]);
+  const bestMoveData = useMemo(() => {
+    if (!bestMove || typeof bestMove !== 'string' || bestMove.length < 4) return null;
+    const from = bestMove.slice(0, 2);
+    const to = bestMove.slice(2, 4);
+    if (!/^[a-h][1-8]$/.test(from) || !/^[a-h][1-8]$/.test(to)) return null;
+    return { from, to };
+  }, [bestMove]);
 
-  const board = useMemo(() => {
-    const boardArray = chess.board();
-    if (perspective === 'black') {
-      boardArray.reverse();
-      for (let row of boardArray) {
-        row.reverse();
-      }
+  const movingPiece = useMemo(() => {
+    if (!bestMoveData) return null;
+    try {
+      const piece = chessRef.current.get(bestMoveData.from);
+      return piece ? piece.type : null;
+    } catch {
+      return null;
     }
-    return boardArray;
-  }, [chess, perspective]);
-
-  // *** LOG BOARD RENDER ***
-  console.log('🎨 [Chessboard] Rendering with state:', {
-    fen: chess.fen().split(' ')[0],
-    turn: chess.turn(),
-    selectedSquare,
-    validMoves: validMoves.length,
-    lastMove: `${lastMoveFrom}-${lastMoveTo}`,
-    perspective,
-    circledSquares: circledSquares?.length || 0,
-    restrictToCircled
-  });
+  }, [bestMoveData]);
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -681,7 +577,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
               {/* BOARD */}
               <View style={styles.boardWrapper}>
                 <View 
-                  ref={boardRef}
                   style={styles.boardContainer}
                   onLayout={handleBoardLayout}
                 >
@@ -697,39 +592,16 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           isDarkTheme={isDarkTheme}
                         />
                       ))
-                    ) : readonly ? (
-                      // Readonly mode - optimized for performance
-                      board.map((row, rowIndex) => (
-                        <ReadonlyBoardRow
-                          key={`readonly-row-${rowIndex}`}
-                          row={row}
-                          rowIndex={rowIndex}
-                          lastMoveFrom={lastMoveFrom}
-                          lastMoveTo={lastMoveTo}
-                          hintSquare={hintSquare}
-                          circledSquares={circledSquares}
-                          perspective={perspective}
-                          currentSquareSize={currentSquareSize}
-                          boardTheme={activeBoardTheme}
-                        />
-                      ))
                     ) : (
-                      // Interactive mode
-                      board.map((row, rowIndex) => (
-                        <BoardRow
+                      boardArray.map((row, rowIndex) => (
+                        <OptimizedBoardRow
                           key={`row-${rowIndex}`}
                           row={row}
                           rowIndex={rowIndex}
-                          onSquarePress={onSquarePress}
-                          onGestureEvent={onGestureEvent}
-                          onHandlerStateChange={onHandlerStateChange}
-                          selectedSquare={selectedSquare}
-                          validMoves={validMoves}
-                          lastMoveFrom={lastMoveFrom}
-                          lastMoveTo={lastMoveTo}
-                          hintSquare={hintSquare}
-                          circledSquares={circledSquares}
+                          handlers={handlers}
+                          boardState={boardState}
                           perspective={perspective}
+                          circledSquares={circledSquares}
                           currentSquareSize={currentSquareSize}
                           boardTheme={activeBoardTheme}
                           readonly={readonly}
@@ -737,31 +609,29 @@ const SmoothChessboard = forwardRef((props, ref) => {
                       ))
                     )}
 
-                    {/* Arrow overlays - only render if we have dimensions */}
-                    {!isLoading && showArrows && currentSquareSize > 0 && (
+                    {/* Arrow overlays */}
+                    {!isLoading && showArrows && currentSquareSize > 0 && boardDimensionsRef.current.width > 0 && (
                       <>
-                        {/* Custom arrows */}
-                        {arrows && arrows.length > 0 && arrows.map((arrow, index) => (
+                        {arrows?.map((arrow, index) => (
                           <Arrow
-                            key={`custom-arrow-${index}-${arrow.from}-${arrow.to}`}
+                            key={`arrow-${index}`}
                             from={arrow.from}
                             to={arrow.to}
                             squareSize={currentSquareSize}
-                            boardSize={boardDimensions.width}
+                            boardSize={boardDimensionsRef.current.width}
                             perspective={perspective}
                             piece={arrow.piece || null}
                             opacity={arrow.opacity || 0.8}
                             color={arrow.color || 'rgba(131, 169, 120, 0.8)'}
                           />
                         ))}
-
-                        {/* Best move arrow */}
                         {bestMoveData && (
                           <Arrow
+                            key="best-move"
                             from={bestMoveData.from}
                             to={bestMoveData.to}
                             squareSize={currentSquareSize}
-                            boardSize={boardDimensions.width}
+                            boardSize={boardDimensionsRef.current.width}
                             perspective={perspective}
                             piece={movingPiece}
                             opacity={0.8}
@@ -775,7 +645,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
             </View>
             
             {/* FILE LABELS */}
-            {showCoordinates ? (
+            {showCoordinates && (
               <View style={styles.fileLabelsRow}>
                 <View style={styles.fileLabelsOffset} />
                 <View style={styles.fileLabels}>
@@ -788,15 +658,15 @@ const SmoothChessboard = forwardRef((props, ref) => {
                   ))}
                 </View>
               </View>
-            ) : null}
+            )}
           </View>
         </View>
       </View>
       
-      {showPromotion && (
+      {boardState.showPromotion && (
         <PromotionOverlay 
           onSelect={handlePromotionSelect} 
-          color={chess.turn()}
+          color={chessRef.current.turn()}
           colors={colors}
           textColors={activeTextColors}
           backgroundColors={{ cardBackground: colors?.cardBackground || '#FFFFFF' }}
@@ -806,9 +676,10 @@ const SmoothChessboard = forwardRef((props, ref) => {
   );
 });
 
-// *** SIMPLIFIED WRAPPER - No more complex theme context dependency ***
+SmoothChessboard.displayName = 'SmoothChessboard';
+
+// *** WRAPPER COMPONENT ***
 const SmoothChessboardWrapper = React.memo(forwardRef((props, ref) => {
-  // If no theme is provided, use default green theme
   const defaultBoardTheme = {
     light: '#EEEED2',
     dark: '#769656',
