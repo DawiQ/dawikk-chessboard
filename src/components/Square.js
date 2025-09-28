@@ -43,6 +43,52 @@ const getCachedOverlayStyle = (key, style) => {
   return cachedOverlayStyles.get(key);
 };
 
+// *** TOKEN COMPONENT FOR BLINDFOLD MODE ***
+const TokenComponent = memo(() => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, []);
+
+  return (
+    <Animated.View 
+      style={[
+        styles.tokenContainer,
+        { transform: [{ scale: pulseAnim }] }
+      ]}
+    >
+      <View style={styles.tokenOuter}>
+        <View style={styles.tokenInner}>
+          <MaterialCommunityIcons 
+            name="help" 
+            size={20} 
+            color="#666666" 
+          />
+        </View>
+      </View>
+    </Animated.View>
+  );
+});
+
+TokenComponent.displayName = 'TokenComponent';
+
 // *** OPTIMIZED ANIMATED HINT - Reduced re-renders ***
 const AnimatedHint = memo(({ boardTheme, isBlack }) => {
   const animRefs = useRef({
@@ -281,7 +327,12 @@ const Square = memo(({
   isCircled = false,
   currentSquareSize,
   readonly = false,
-  boardTheme = null
+  boardTheme = null,
+  
+  // *** NEW PROPS ***
+  customHighlightColor = null, // Custom highlight color for this square
+  showToken = false, // Show token instead of piece (blindfold mode)
+  onBlindSelect = null, // Callback for blind square selection
 }) => {
   
   const activeTheme = boardTheme || DEFAULT_BOARD_THEME;
@@ -289,6 +340,11 @@ const Square = memo(({
 
   // *** OPTIMIZED BACKGROUND COLOR ***
   const backgroundColor = useMemo(() => {
+    // NEW: Check for custom highlight first
+    if (customHighlightColor) {
+      return customHighlightColor;
+    }
+    
     const normalColor = isBlack ? activeTheme.dark : activeTheme.light;
     
     if (isHintSquare && activeTheme.hintLightBg && activeTheme.hintDarkBg) {
@@ -296,7 +352,7 @@ const Square = memo(({
     }
     
     return normalColor;
-  }, [isBlack, activeTheme, isHintSquare]);
+  }, [isBlack, activeTheme, isHintSquare, customHighlightColor]);
 
   // *** OPTIMIZED OVERLAY STYLES WITH CACHING ***
   const overlayStyles = useMemo(() => {
@@ -346,10 +402,16 @@ const Square = memo(({
 
   // *** STABLE CALLBACKS ***
   const handlePress = useCallback(() => {
+    // NEW: If in blind mode with callback, use that
+    if (showToken && onBlindSelect) {
+      onBlindSelect(square);
+      return;
+    }
+    
     if (!readonly) {
       onSquarePress(square);
     }
-  }, [onSquarePress, square, readonly]);
+  }, [onSquarePress, square, readonly, showToken, onBlindSelect]);
 
   const handleGestureEvent = useMemo(() => 
     onGestureEvent(square), 
@@ -384,15 +446,19 @@ const Square = memo(({
         <View style={[styles.overlay, overlayStyles.highlight]} />
       )}
       
-      {/* Render piece if exists */}
-      {piece && (
-        <PieceComponent
-          piece={piece}
-          onGestureEvent={handleGestureEvent}
-          onHandlerStateChange={handleHandlerStateChange}
-          onPress={handlePress}
-          readonly={readonly}
-        />
+      {/* NEW: Render token or piece based on showToken */}
+      {showToken ? (
+        <TokenComponent />
+      ) : (
+        piece && (
+          <PieceComponent
+            piece={piece}
+            onGestureEvent={handleGestureEvent}
+            onHandlerStateChange={handleHandlerStateChange}
+            onPress={handlePress}
+            readonly={readonly}
+          />
+        )
       )}
       
       {/* Circle indicator */}
@@ -432,7 +498,9 @@ const Square = memo(({
     prevProps.isLastMoveFrom !== nextProps.isLastMoveFrom ||
     prevProps.isLastMoveTo !== nextProps.isLastMoveTo ||
     prevProps.isHintSquare !== nextProps.isHintSquare ||
-    prevProps.isCircled !== nextProps.isCircled
+    prevProps.isCircled !== nextProps.isCircled ||
+    prevProps.customHighlightColor !== nextProps.customHighlightColor || // NEW
+    prevProps.showToken !== nextProps.showToken // NEW
   ) {
     return false;
   }
@@ -452,7 +520,8 @@ const Square = memo(({
   if (
     prevProps.onSquarePress !== nextProps.onSquarePress ||
     prevProps.onGestureEvent !== nextProps.onGestureEvent ||
-    prevProps.onHandlerStateChange !== nextProps.onHandlerStateChange
+    prevProps.onHandlerStateChange !== nextProps.onHandlerStateChange ||
+    prevProps.onBlindSelect !== nextProps.onBlindSelect // NEW
   ) {
     return false;
   }
@@ -553,6 +622,41 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(0, 230, 118, 0.5)',
     backgroundColor: 'rgba(0, 230, 118, 0.05)',
+  },
+  
+  // *** NEW STYLES FOR TOKEN ***
+  tokenContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  tokenOuter: {
+    width: '70%',
+    height: '70%',
+    borderRadius: 200,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#BDBDBD',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  tokenInner: {
+    width: '80%',
+    height: '80%',
+    borderRadius: 200,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
 });
 

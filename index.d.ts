@@ -71,7 +71,25 @@ export interface ArrowConfig {
 }
 
 // ============================================================================
-// UPDATED COMPONENT PROPS - With standalone support
+// NEW TYPES FOR v0.2.0
+// ============================================================================
+
+export interface HighlightedSquare {
+  square: string;
+  color: string;
+}
+
+export type HiddenSquares = Set<string> | 'all';
+
+export type PieceType = {
+  type: string;
+  color: 'w' | 'b';
+};
+
+export type BoardArray = (PieceType | null)[][];
+
+// ============================================================================
+// UPDATED COMPONENT PROPS - With standalone support and new features
 // ============================================================================
 
 export interface ChessboardProps {
@@ -89,10 +107,24 @@ export interface ChessboardProps {
   showCoordinates?: boolean;
   readonly?: boolean;
   
-  // 🎯 NEW: Circles around pieces on specific squares (for Hand & Brain)
+  // 🎯 Hand & Brain mode
   circledSquares?: string[];
+  restrictToCircled?: boolean;
+  onRestrictedMoveAttempt?: (square: string, action: 'select' | 'drag') => void;
   
-  // 🎯 NEW STANDALONE PROPS
+  // 🎯 NEW v0.2.0: Skip validation mode
+  skipValidation?: boolean;
+  customBoardArray?: BoardArray;
+  
+  // 🎯 NEW v0.2.0: Custom highlights
+  highlightedSquares?: HighlightedSquare[];
+  
+  // 🎯 NEW v0.2.0: Blindfold/Shadow chess mode
+  blindfoldMode?: boolean;
+  hiddenSquares?: HiddenSquares;
+  onBlindSelect?: (square: string) => void;
+  
+  // 🎯 Standalone props
   boardTheme?: BoardTheme | null;
   textColors?: Partial<TextColors> | null;
   colors?: Partial<ThemeColors> | null;
@@ -102,13 +134,11 @@ export interface ChessboardRef {
   highlight: (square: string) => void;
   clearHighlight: () => void;
   setFen: (fen: string) => void;
+  setBoardArray?: (array: BoardArray) => void;  // NEW v0.2.0
 }
 
 export interface SquareProps {
-  piece?: {
-    type: string;
-    color: 'w' | 'b';
-  } | null;
+  piece?: PieceType | null;
   row: number;
   col: number;
   square: string;
@@ -120,12 +150,17 @@ export interface SquareProps {
   isLastMoveFrom?: boolean;
   isLastMoveTo?: boolean;
   isHintSquare?: boolean;
-  isCircled?: boolean;  // 🎯 NEW: For Hand & Brain mode
+  isCircled?: boolean;
   perspective?: 'white' | 'black';
   currentSquareSize?: number;
   readonly?: boolean;
   
-  // 🎯 NEW STANDALONE PROPS
+  // 🎯 NEW v0.2.0
+  customHighlightColor?: string | null;
+  showToken?: boolean;
+  onBlindSelect?: ((square: string) => void) | null;
+  
+  // 🎯 Standalone props
   boardTheme?: BoardTheme | null;
 }
 
@@ -144,7 +179,7 @@ export interface PromotionOverlayProps {
   onSelect: (piece: string) => void;
   color: 'w' | 'b';
   
-  // 🎯 NEW STANDALONE PROPS
+  // 🎯 Standalone props
   colors?: Partial<ThemeColors> | null;
   textColors?: Partial<TextColors> | null;
   backgroundColors?: Partial<BackgroundColors> | null;
@@ -194,6 +229,7 @@ export class Chessboard extends Component<ChessboardProps> {
   highlight(square: string): void;
   clearHighlight(): void;
   setFen(fen: string): void;
+  setBoardArray?(array: BoardArray): void;  // NEW v0.2.0
 }
 
 export declare const Square: React.ComponentType<SquareProps>;
@@ -263,6 +299,14 @@ export declare function getThemeAccessibility(themeName: string): ThemeAccessibi
 // Performance utilities
 export declare function clearArrowCache(): void;
 export declare function clearSquareCache(): void;
+
+// ============================================================================
+// HELPER UTILITIES FOR v0.2.0
+// ============================================================================
+
+export declare function createAllSquaresSet(): Set<string>;
+export declare function createEmptyBoardArray(): BoardArray;
+export declare function fenToBoardArray(fen: string): BoardArray;
 
 // ============================================================================
 // THEME COLLECTIONS - Enhanced

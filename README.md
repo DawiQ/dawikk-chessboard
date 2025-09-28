@@ -5,7 +5,10 @@ A highly optimized, feature-rich React Native chessboard component with gesture 
 ## Features
 
 - 🎨 **Beautiful Themes** - Multiple pre-built themes (classic, green, blue, purple, dark, wood)
-- 🎯 **Hand & Brain Mode** - Circle pieces to indicate which can be moved (NEW in v0.1.4)
+- 🎯 **Hand & Brain Mode** - Circle pieces to indicate which can be moved
+- 👁️ **Blindfold Chess** - Shadow chess mode with hidden pieces (NEW in v0.2.0)
+- 🎨 **Custom Highlights** - Highlight squares with custom colors (NEW in v0.2.0)
+- ⚡ **Skip Validation** - Bypass chess.js validation for custom scenarios (NEW in v0.2.0)
 - 👆 **Gesture Support** - Drag and drop pieces with smooth animations
 - 🎮 **Interactive** - Tap to select, drag to move
 - 📱 **Responsive** - Adapts to any screen size
@@ -71,7 +74,142 @@ export default function ChessGame() {
 }
 ```
 
-## Hand & Brain Mode (NEW)
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `fen` | string | Starting position | Board position in FEN notation |
+| `onMove` | function | Required | Callback when a move is made `(from, to, promotion) => void` |
+| `perspective` | 'white' \| 'black' | 'white' | Board orientation |
+| `circledSquares` | string[] | [] | Squares to circle (for Hand & Brain mode) |
+| `arrows` | ArrowConfig[] | [] | Custom arrows to display |
+| `bestMove` | string | null | Best move hint (e.g., "e2e4") |
+| `lastMoveFrom` | string | null | Highlight last move from square |
+| `lastMoveTo` | string | null | Highlight last move to square |
+| `boardTheme` | BoardTheme | green theme | Board color theme |
+| `showCoordinates` | boolean | true | Show file and rank labels |
+| `showArrows` | boolean | true | Enable arrow display |
+| `readonly` | boolean | false | Disable piece interaction |
+| `isLoading` | boolean | false | Show loading animation |
+| `isDarkTheme` | boolean | false | Dark mode support |
+| **NEW** `skipValidation` | boolean | false | Skip chess.js move validation |
+| **NEW** `highlightedSquares` | Array | [] | Custom square highlights `[{square: 'e4', color: '#FF0000'}]` |
+| **NEW** `blindfoldMode` | boolean | false | Enable shadow chess mode with tokens |
+| **NEW** `hiddenSquares` | Set \| "all" | null | Squares to hide in blindfold mode |
+| **NEW** `onBlindSelect` | function | null | Callback for blind square selection |
+| **NEW** `customBoardArray` | Array | null | Custom board array for skipValidation mode |
+
+## New Features (v0.2.0)
+
+### 🎯 Skip Validation Mode
+
+Bypass chess.js validation for custom chess variants or special scenarios:
+
+```javascript
+// Custom board without validation
+const customBoard = Array.from({ length: 8 }, () => 
+  Array.from({ length: 8 }, () => null)
+);
+
+// Place pieces manually
+customBoard[0][0] = { type: 'r', color: 'w' };
+customBoard[7][7] = { type: 'k', color: 'b' };
+
+<Chessboard 
+  skipValidation={true}
+  customBoardArray={customBoard}
+  onMove={(from, to) => {
+    console.log(`Move from ${from} to ${to}`);
+    // Handle move without validation
+  }}
+/>
+```
+
+### 🎨 Custom Square Highlights
+
+Highlight squares with custom colors for tutorials, analysis, or special effects:
+
+```javascript
+<Chessboard 
+  fen={fen}
+  highlightedSquares={[
+    { square: 'e4', color: '#FF0000' },     // Red
+    { square: 'e5', color: '#00FF00' },     // Green
+    { square: 'd4', color: 'rgba(0,0,255,0.5)' }, // Semi-transparent blue
+    { square: 'f6', color: '#FFD700' }      // Gold
+  ]}
+  onMove={handleMove}
+/>
+```
+
+### 👁️ Blindfold Chess Mode
+
+Perfect for memory training and shadow chess variants where pieces are hidden:
+
+```javascript
+// Helper to create set with all squares
+const createAllSquaresSet = () => {
+  const squares = new Set();
+  const files = 'abcdefgh';
+  const ranks = '12345678';
+  
+  for (let file of files) {
+    for (let rank of ranks) {
+      squares.add(`${file}${rank}`);
+    }
+  }
+  
+  return squares;
+};
+
+// All pieces hidden
+<Chessboard 
+  fen={chess.fen()}
+  blindfoldMode={true}
+  hiddenSquares="all"  // Hide all pieces
+  onBlindSelect={(square) => {
+    console.log('Selected hidden square:', square);
+  }}
+  onMove={handleMove}
+/>
+
+// Selective hiding
+const [hiddenSquares, setHiddenSquares] = useState(new Set(['e4', 'e5', 'd4']));
+
+<Chessboard 
+  fen={chess.fen()}
+  blindfoldMode={true}
+  hiddenSquares={hiddenSquares}
+  onBlindSelect={(square) => {
+    // Reveal piece on click
+    setHiddenSquares(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(square);
+      return newSet;
+    });
+  }}
+  onMove={handleMove}
+/>
+
+// Dynamic revealing game
+const [hiddenSquares, setHiddenSquares] = useState("all");
+
+const handleSquareClick = (square) => {
+  if (hiddenSquares === "all") {
+    // First click - create set without clicked square
+    const allSquares = createAllSquaresSet();
+    allSquares.delete(square);
+    setHiddenSquares(allSquares);
+  } else {
+    // Subsequent clicks - reveal more squares
+    const newHidden = new Set(hiddenSquares);
+    newHidden.delete(square);
+    setHiddenSquares(newHidden);
+  }
+};
+```
+
+## Hand & Brain Mode
 
 Perfect for the Hand & Brain chess variant where one player chooses the piece type and another chooses which piece to move:
 
@@ -96,25 +234,6 @@ function HandAndBrainGame() {
   );
 }
 ```
-
-## Props
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `fen` | string | Starting position | Board position in FEN notation |
-| `onMove` | function | Required | Callback when a move is made `(from, to, promotion) => void` |
-| `perspective` | 'white' \| 'black' | 'white' | Board orientation |
-| `circledSquares` | string[] | [] | Squares to circle (for Hand & Brain mode) |
-| `arrows` | ArrowConfig[] | [] | Custom arrows to display |
-| `bestMove` | string | null | Best move hint (e.g., "e2e4") |
-| `lastMoveFrom` | string | null | Highlight last move from square |
-| `lastMoveTo` | string | null | Highlight last move to square |
-| `boardTheme` | BoardTheme | green theme | Board color theme |
-| `showCoordinates` | boolean | true | Show file and rank labels |
-| `showArrows` | boolean | true | Enable arrow display |
-| `readonly` | boolean | false | Disable piece interaction |
-| `isLoading` | boolean | false | Show loading animation |
-| `isDarkTheme` | boolean | false | Dark mode support |
 
 ## Themes
 
@@ -193,6 +312,9 @@ boardRef.current.clearHighlight();
 
 // Set position directly
 boardRef.current.setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+
+// NEW: Set custom board array (skipValidation mode only)
+boardRef.current.setBoardArray(customBoardArray);
 ```
 
 ### Readonly Board
@@ -228,42 +350,67 @@ function ChessPuzzle() {
 }
 ```
 
-### Analysis Board
+### Memory Training Game
 
 ```javascript
-function AnalysisBoard() {
-  const boardRef = useRef();
-  const [arrows, setArrows] = useState([]);
+function MemoryChess() {
+  const [hiddenSquares, setHiddenSquares] = useState("all");
+  const [moveCount, setMoveCount] = useState(0);
 
-  const addArrow = (from, to) => {
-    setArrows([...arrows, { from, to, color: 'rgba(0, 150, 0, 0.7)' }]);
+  const handleBlindSelect = (square) => {
+    // Reveal square temporarily
+    if (hiddenSquares === "all") {
+      const allSquares = createAllSquaresSet();
+      allSquares.delete(square);
+      setHiddenSquares(allSquares);
+    } else {
+      const newHidden = new Set(hiddenSquares);
+      newHidden.delete(square);
+      setHiddenSquares(newHidden);
+    }
+
+    // Hide again after 2 seconds
+    setTimeout(() => {
+      setHiddenSquares("all");
+    }, 2000);
   };
 
   return (
     <Chessboard 
-      ref={boardRef}
-      fen={fen}
-      onMove={handleMove}
-      arrows={arrows}
-      boardTheme={DefaultThemes.green}
+      fen={chess.fen()}
+      blindfoldMode={true}
+      hiddenSquares={hiddenSquares}
+      onBlindSelect={handleBlindSelect}
+      onMove={(from, to) => {
+        setMoveCount(prev => prev + 1);
+        handleMove(from, to);
+      }}
     />
   );
 }
 ```
 
-### Tournament Display
+### Chess Variant Board
 
 ```javascript
-function TournamentBoard() {
+function CustomVariant() {
+  // Create custom starting position
+  const customBoard = createCustomStartingPosition();
+  
   return (
     <Chessboard 
-      fen={fen}
-      perspective={currentPlayer}
-      readonly={true}
-      showCoordinates={true}
-      boardTheme={DefaultThemes.classic}
-      lastMoveFrom={lastMove.from}
-      lastMoveTo={lastMove.to}
+      skipValidation={true}
+      customBoardArray={customBoard}
+      highlightedSquares={[
+        { square: 'd4', color: 'rgba(255, 0, 0, 0.3)' },
+        { square: 'e4', color: 'rgba(255, 0, 0, 0.3)' },
+        { square: 'd5', color: 'rgba(255, 0, 0, 0.3)' },
+        { square: 'e5', color: 'rgba(255, 0, 0, 0.3)' },
+      ]}
+      onMove={(from, to) => {
+        // Custom move logic
+        console.log(`Custom move: ${from} to ${to}`);
+      }}
     />
   );
 }
@@ -272,9 +419,10 @@ function TournamentBoard() {
 ## Performance Tips
 
 1. **Use `readonly` mode** for display-only boards
-2. **Memoize callbacks** passed to `onMove`
+2. **Memoize callbacks** passed to `onMove` and `onBlindSelect`
 3. **Limit arrows** to necessary ones only
 4. **Use refs** for imperative actions instead of state changes
+5. **For blindfold mode**, consider revealing squares progressively rather than all at once
 
 ## Requirements
 
@@ -287,6 +435,15 @@ function TournamentBoard() {
 Contributions are welcome! Please read our contributing guidelines before submitting PRs.
 
 ## Changelog
+
+### v0.2.0
+- Added `skipValidation` prop for bypassing chess.js validation
+- Added `highlightedSquares` for custom square highlighting
+- Added `blindfoldMode` for shadow chess variants
+- Added `hiddenSquares` and `onBlindSelect` for blindfold gameplay
+- Added `customBoardArray` for custom board positions
+- Added token display for hidden pieces
+- Improved performance with better memoization
 
 ### v0.1.4
 - Added `circledSquares` prop for Hand & Brain mode

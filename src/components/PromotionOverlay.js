@@ -10,17 +10,17 @@ const DEFAULT_COLORS = {
   subtitleText: '#6B7280'
 };
 
-// *** STAŁE DANE FIGUR (nie zmieniają się nigdy) ***
+// *** PIECE CONSTANTS (never change) ***
 const PIECE_ICONS = {
-  'q': { icon: 'chess-queen', label: 'Hetman' },
-  'r': { icon: 'chess-rook', label: 'Wieża' },
-  'b': { icon: 'chess-bishop', label: 'Goniec' },
-  'n': { icon: 'chess-knight', label: 'Skoczek' }
+  'q': { icon: 'chess-queen', label: 'Queen' },
+  'r': { icon: 'chess-rook', label: 'Rook' },
+  'b': { icon: 'chess-bishop', label: 'Bishop' },
+  'n': { icon: 'chess-knight', label: 'Knight' }
 };
 
-const PIECE_ORDER = ['q', 'r', 'b', 'n']; // Stabilna kolejność
+const PIECE_ORDER = ['q', 'r', 'b', 'n']; // Stable order
 
-// *** OPTION COMPONENT - Memoized osobno ***
+// *** OPTION COMPONENT - Memoized separately ***
 const PromotionOption = memo(({ 
   piece, 
   pieceInfo, 
@@ -68,7 +68,7 @@ const PromotionOption = memo(({
 
 PromotionOption.displayName = 'PromotionOption';
 
-// *** GŁÓWNY KOMPONENT - STANDALONE VERSION ***
+// *** MAIN COMPONENT - STANDALONE VERSION ***
 const PromotionOverlay = memo(({ 
   onSelect, 
   color,
@@ -131,7 +131,7 @@ const PromotionOverlay = memo(({
     >
       <View style={promotionCardStyle}>
         <Text style={titleTextStyle}>
-          Wybierz promocję
+          Choose promotion
         </Text>
         
         <View style={styles.optionsContainer}>
@@ -139,7 +139,7 @@ const PromotionOverlay = memo(({
         </View>
         
         <Text style={instructionTextStyle}>
-          Wybierz figurę na którą chcesz promować pionka
+          Select the piece to promote your pawn to
         </Text>
       </View>
     </View>
@@ -155,7 +155,7 @@ const PromotionOverlay = memo(({
   );
 });
 
-// *** STAŁE STYLE (nie będą się zmieniać) ***
+// *** STATIC STYLES (won't change) ***
 const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',

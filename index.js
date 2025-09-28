@@ -38,6 +38,72 @@ export const clearSquareCache = () => {
 };
 
 // ============================================================================
+// NEW HELPER UTILITIES FOR v0.2.0
+// ============================================================================
+
+// Create a Set with all 64 squares
+export const createAllSquaresSet = () => {
+  const squares = new Set();
+  const files = 'abcdefgh';
+  const ranks = '12345678';
+  
+  for (let file of files) {
+    for (let rank of ranks) {
+      squares.add(`${file}${rank}`);
+    }
+  }
+  
+  return squares;
+};
+
+// Create an empty 8x8 board array
+export const createEmptyBoardArray = () => {
+  return Array.from({ length: 8 }, () => 
+    Array.from({ length: 8 }, () => null)
+  );
+};
+
+// Convert FEN to board array (simple version without chess.js)
+export const fenToBoardArray = (fen) => {
+  const board = [];
+  const fenParts = fen.split(' ');
+  const pieces = fenParts[0];
+  const rows = pieces.split('/');
+  
+  const pieceMap = {
+    'p': { type: 'p', color: 'b' },
+    'P': { type: 'p', color: 'w' },
+    'n': { type: 'n', color: 'b' },
+    'N': { type: 'n', color: 'w' },
+    'b': { type: 'b', color: 'b' },
+    'B': { type: 'b', color: 'w' },
+    'r': { type: 'r', color: 'b' },
+    'R': { type: 'r', color: 'w' },
+    'q': { type: 'q', color: 'b' },
+    'Q': { type: 'q', color: 'w' },
+    'k': { type: 'k', color: 'b' },
+    'K': { type: 'k', color: 'w' },
+  };
+  
+  rows.forEach((row) => {
+    const boardRow = [];
+    for (let char of row) {
+      if (isNaN(char)) {
+        boardRow.push(pieceMap[char] || null);
+      } else {
+        const emptySquares = parseInt(char);
+        for (let i = 0; i < emptySquares; i++) {
+          boardRow.push(null);
+        }
+      }
+    }
+    board.push(boardRow);
+  });
+  
+  return board;
+};
+
+// ============================================================================
 // PRE-BUILT THEMES - Easy to use with props
 // ============================================================================
 export const DefaultThemes = {
