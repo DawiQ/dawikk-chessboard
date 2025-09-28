@@ -310,7 +310,7 @@ const PieceComponent = memo(({ piece, onGestureEvent, onHandlerStateChange, onPr
 
 PieceComponent.displayName = 'PieceComponent';
 
-// *** MAIN SQUARE COMPONENT - HEAVILY OPTIMIZED ***
+// *** MAIN SQUARE COMPONENT - UPDATED with selective hiding ***
 const Square = memo(({ 
   piece, 
   row, 
@@ -329,7 +329,7 @@ const Square = memo(({
   readonly = false,
   boardTheme = null,
   
-  // *** NEW PROPS ***
+  // *** UPDATED PROPS ***
   customHighlightColor = null, // Custom highlight color for this square
   showToken = false, // Show token instead of piece (blindfold mode)
   onBlindSelect = null, // Callback for blind square selection
@@ -337,6 +337,10 @@ const Square = memo(({
   
   const activeTheme = boardTheme || DEFAULT_BOARD_THEME;
   const isBlack = (row + col) % 2 !== 0;
+
+  // *** UPDATED: Check if this square should be hidden ***
+  // Only show token if there's actually a piece AND it should be hidden
+  const shouldShowToken = showToken && piece !== null;
 
   // *** OPTIMIZED BACKGROUND COLOR ***
   const backgroundColor = useMemo(() => {
@@ -402,8 +406,8 @@ const Square = memo(({
 
   // *** STABLE CALLBACKS ***
   const handlePress = useCallback(() => {
-    // NEW: If in blind mode with callback, use that
-    if (showToken && onBlindSelect) {
+    // NEW: If in blind mode with callback, use that for squares with pieces
+    if (shouldShowToken && onBlindSelect) {
       onBlindSelect(square);
       return;
     }
@@ -411,7 +415,7 @@ const Square = memo(({
     if (!readonly) {
       onSquarePress(square);
     }
-  }, [onSquarePress, square, readonly, showToken, onBlindSelect]);
+  }, [onSquarePress, square, readonly, shouldShowToken, onBlindSelect]);
 
   const handleGestureEvent = useMemo(() => 
     onGestureEvent(square), 
@@ -446,8 +450,8 @@ const Square = memo(({
         <View style={[styles.overlay, overlayStyles.highlight]} />
       )}
       
-      {/* NEW: Render token or piece based on showToken */}
-      {showToken ? (
+      {/* UPDATED: Render token only for squares with pieces, otherwise show piece normally */}
+      {shouldShowToken ? (
         <TokenComponent />
       ) : (
         piece && (
@@ -499,8 +503,8 @@ const Square = memo(({
     prevProps.isLastMoveTo !== nextProps.isLastMoveTo ||
     prevProps.isHintSquare !== nextProps.isHintSquare ||
     prevProps.isCircled !== nextProps.isCircled ||
-    prevProps.customHighlightColor !== nextProps.customHighlightColor || // NEW
-    prevProps.showToken !== nextProps.showToken // NEW
+    prevProps.customHighlightColor !== nextProps.customHighlightColor ||
+    prevProps.showToken !== nextProps.showToken // UPDATED
   ) {
     return false;
   }
@@ -521,7 +525,7 @@ const Square = memo(({
     prevProps.onSquarePress !== nextProps.onSquarePress ||
     prevProps.onGestureEvent !== nextProps.onGestureEvent ||
     prevProps.onHandlerStateChange !== nextProps.onHandlerStateChange ||
-    prevProps.onBlindSelect !== nextProps.onBlindSelect // NEW
+    prevProps.onBlindSelect !== nextProps.onBlindSelect
   ) {
     return false;
   }
@@ -624,7 +628,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 230, 118, 0.05)',
   },
   
-  // *** NEW STYLES FOR TOKEN ***
+  // *** TOKEN STYLES ***
   tokenContainer: {
     position: 'absolute',
     width: '100%',

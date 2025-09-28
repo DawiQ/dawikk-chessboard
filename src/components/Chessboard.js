@@ -162,7 +162,7 @@ const LoadingBoardRow = React.memo(({
 
 LoadingBoardRow.displayName = 'LoadingBoardRow';
 
-// *** OPTIMIZED BOARD ROW WITH STABLE KEYS ***
+// *** UPDATED OPTIMIZED BOARD ROW WITH SELECTIVE HIDING ***
 const OptimizedBoardRow = React.memo(({ 
   row, 
   rowIndex, 
@@ -173,10 +173,10 @@ const OptimizedBoardRow = React.memo(({
   currentSquareSize,
   boardTheme,
   readonly,
-  highlightedSquares, // NEW: Custom highlighted squares
-  blindfoldMode, // NEW: Shadow chess mode
-  hiddenSquares, // NEW: Which squares are hidden
-  onBlindSelect // NEW: Callback for blind square selection
+  highlightedSquares, // Custom highlighted squares
+  blindfoldMode, // Shadow chess mode
+  hiddenSquares, // Which squares are hidden
+  onBlindSelect // Callback for blind square selection
 }) => {
   // Pre-calculate square notations once
   const squareNotations = useMemo(() => {
@@ -192,11 +192,12 @@ const OptimizedBoardRow = React.memo(({
       {row.map((square, colIndex) => {
         const squareNotation = squareNotations[colIndex];
         
-        // NEW: Check for custom highlighting
+        // Check for custom highlighting
         const customHighlight = highlightedSquares?.find(h => h.square === squareNotation);
         
-        // NEW: Check if square should be hidden (shadow chess)
-        const isHidden = blindfoldMode && (
+        // UPDATED: Check if square should be hidden - only if it has a piece
+        const hasPiece = square !== null;
+        const isHidden = blindfoldMode && hasPiece && (
           hiddenSquares === "all" || 
           hiddenSquares?.has?.(squareNotation)
         );
@@ -204,7 +205,7 @@ const OptimizedBoardRow = React.memo(({
         return (
           <Square
             key={`${squareNotation}`}
-            piece={isHidden ? null : square} // Hide piece if in blindfold mode
+            piece={square} // Always pass the piece (don't hide it here)
             row={rowIndex}
             col={colIndex}
             square={squareNotation}
@@ -221,9 +222,9 @@ const OptimizedBoardRow = React.memo(({
             currentSquareSize={currentSquareSize}
             boardTheme={boardTheme}
             readonly={readonly}
-            customHighlightColor={customHighlight?.color} // NEW
-            showToken={isHidden} // NEW: Show token instead of piece
-            onBlindSelect={onBlindSelect} // NEW
+            customHighlightColor={customHighlight?.color} // Custom highlighting
+            showToken={isHidden} // UPDATED: Only show token if square has piece AND should be hidden
+            onBlindSelect={onBlindSelect} // Blindfold selection callback
           />
         );
       })}
@@ -256,13 +257,13 @@ const SmoothChessboard = forwardRef((props, ref) => {
     showCoordinates = true,
     readonly = false,
     
-    // *** NEW PROPS ***
-    skipValidation = false, // NEW: Skip chess.js validation
-    highlightedSquares = [], // NEW: Array of {square: 'e4', color: '#FF0000'}
-    blindfoldMode = false, // NEW: Shadow chess mode
-    hiddenSquares = null, // NEW: Set of hidden squares for blindfold
-    onBlindSelect = null, // NEW: Callback when selecting blind square
-    customBoardArray = null, // NEW: Custom board array for skipValidation mode
+    // *** EXISTING PROPS ***
+    skipValidation = false, // Skip chess.js validation
+    highlightedSquares = [], // Array of {square: 'e4', color: '#FF0000'}
+    blindfoldMode = false, // Shadow chess mode
+    hiddenSquares = null, // Set of hidden squares for blindfold
+    onBlindSelect = null, // Callback when selecting blind square
+    customBoardArray = null, // Custom board array for skipValidation mode
   } = props;
 
   // Use provided theme or defaults
@@ -401,7 +402,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
       }
       dispatch({ type: BOARD_ACTIONS.RESET_STATE });
     },
-    // NEW: Set custom board array for skipValidation mode
+    // Set custom board array for skipValidation mode
     setBoardArray: (array) => {
       if (skipValidation) {
         const newArray = JSON.parse(JSON.stringify(array));
@@ -475,7 +476,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
   const onSquarePress = useCallback((square) => {
     if (isLoading || readonly) return;
 
-    // NEW: Handle blind square selection in blindfold mode
+    // Handle blind square selection in blindfold mode
     if (blindfoldMode && onBlindSelect) {
       onBlindSelect(square);
       return;
@@ -707,10 +708,10 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           currentSquareSize={currentSquareSize}
                           boardTheme={activeBoardTheme}
                           readonly={readonly}
-                          highlightedSquares={highlightedSquares} // NEW
-                          blindfoldMode={blindfoldMode} // NEW
-                          hiddenSquares={hiddenSquares} // NEW
-                          onBlindSelect={onBlindSelect} // NEW
+                          highlightedSquares={highlightedSquares} // Custom highlights
+                          blindfoldMode={blindfoldMode} // Blindfold mode
+                          hiddenSquares={hiddenSquares} // Hidden squares
+                          onBlindSelect={onBlindSelect} // Blind selection callback
                         />
                       ))
                     )}
