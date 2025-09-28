@@ -258,12 +258,10 @@ const SmoothChessboard = forwardRef((props, ref) => {
     readonly = false,
     
     // *** EXISTING PROPS ***
-    skipValidation = false, // Skip chess.js validation
     highlightedSquares = [], // Array of {square: 'e4', color: '#FF0000'}
     blindfoldMode = false, // Shadow chess mode
     hiddenSquares = null, // Set of hidden squares for blindfold
     onBlindSelect = null, // Callback when selecting blind square
-    customBoardArray = null, // Custom board array for skipValidation mode
   } = props;
 
   // Use provided theme or defaults
@@ -283,21 +281,11 @@ const SmoothChessboard = forwardRef((props, ref) => {
   });
 
   // *** CHESS INSTANCE IN REF - Support skipValidation mode ***
-  const chessRef = useRef(skipValidation ? null : new Chess(initialFen));
+  const chessRef = useRef(new Chess(initialFen, {skipValidation: true}));
   
   // *** BOARD ARRAY STATE - Support custom boards ***
   const [boardArray, setBoardArray] = useState(() => {
-    if (skipValidation && customBoardArray) {
-      // Use custom board array if provided
-      const array = JSON.parse(JSON.stringify(customBoardArray));
-      if (perspective === 'black') {
-        array.reverse();
-        for (let row of array) {
-          row.reverse();
-        }
-      }
-      return array;
-    } else if (!skipValidation && chessRef.current) {
+    if (chessRef.current) {
       // Use chess.js board
       const array = chessRef.current.board();
       if (perspective === 'black') {
@@ -330,21 +318,9 @@ const SmoothChessboard = forwardRef((props, ref) => {
 
   // *** UPDATE CHESS POSITION - Support skipValidation ***
   useEffect(() => {
-    if (skipValidation) {
-      // In skipValidation mode, update board from customBoardArray if provided
-      if (customBoardArray) {
-        const array = JSON.parse(JSON.stringify(customBoardArray));
-        if (perspective === 'black') {
-          array.reverse();
-          for (let row of array) {
-            row.reverse();
-          }
-        }
-        setBoardArray(array);
-      }
-    } else if (initialFen && initialFen !== prevFenRef.current) {
+    if (initialFen && initialFen !== prevFenRef.current) {
       // Normal chess.js mode
-      chessRef.current = new Chess(initialFen);
+      chessRef.current = new Chess(initialFen, {skipValidation: true});
       const array = chessRef.current.board();
       if (perspective === 'black') {
         array.reverse();
@@ -360,7 +336,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
       });
       prevFenRef.current = initialFen;
     }
-  }, [initialFen, perspective, propLastMoveFrom, propLastMoveTo, skipValidation, customBoardArray]);
+  }, [initialFen, perspective, propLastMoveFrom, propLastMoveTo]);
 
   // *** UPDATE LAST MOVE FROM PROPS ***
   useEffect(() => {
@@ -389,8 +365,32 @@ const SmoothChessboard = forwardRef((props, ref) => {
       dispatch({ type: BOARD_ACTIONS.CLEAR_HINT });
     },
     setFen: (fen) => {
-      if (!skipValidation) {
-        chessRef.current = new Chess(fen);
+      chessRef.current = new Chess(fen, {skipValidation: true});
+      const array = chessRef.current.board();
+      if (perspective === 'black') {
+        array.reverse();
+        for (let row of array) {
+          row.reverse();
+        }
+      }
+      setBoardArray(array);
+      dispatch({ type: BOARD_ACTIONS.RESET_STATE });
+    }
+  }), [perspective]);
+
+  // *** OPTIMIZED HANDLE MOVE - Support skipValidation ***
+  const handleMove = useCallback((from, to, promotion) => {
+    const now = Date.now();
+    if (now - lastMoveTimeRef.current < 150) return;
+    lastMoveTimeRef.current = now;
+
+    try {
+      const currentChess = chessRef.current;
+      const testChess = new Chess(currentChess.fen(), {skipValidation: true});
+      const move = testChess.move({ from, to, promotion });
+      
+      if (move) {
+        chessRef.current.move({ from, to, promotion });
         const array = chessRef.current.board();
         if (perspective === 'black') {
           array.reverse();
@@ -399,64 +399,18 @@ const SmoothChessboard = forwardRef((props, ref) => {
           }
         }
         setBoardArray(array);
-      }
-      dispatch({ type: BOARD_ACTIONS.RESET_STATE });
-    },
-    // Set custom board array for skipValidation mode
-    setBoardArray: (array) => {
-      if (skipValidation) {
-        const newArray = JSON.parse(JSON.stringify(array));
-        if (perspective === 'black') {
-          newArray.reverse();
-          for (let row of newArray) {
-            row.reverse();
-          }
-        }
-        setBoardArray(newArray);
-      }
-    }
-  }), [perspective, skipValidation]);
-
-  // *** OPTIMIZED HANDLE MOVE - Support skipValidation ***
-  const handleMove = useCallback((from, to, promotion) => {
-    const now = Date.now();
-    if (now - lastMoveTimeRef.current < 150) return;
-    lastMoveTimeRef.current = now;
-
-    if (skipValidation) {
-      // In skipValidation mode, just call onMove without validation
-      onMove?.(from, to, promotion);
-      dispatch({ type: BOARD_ACTIONS.SET_LAST_MOVE, from, to });
-      dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
-    } else {
-      try {
-        const currentChess = chessRef.current;
-        const testChess = new Chess(currentChess.fen());
-        const move = testChess.move({ from, to, promotion });
+        onMove?.(from, to, promotion);
         
-        if (move) {
-          chessRef.current.move({ from, to, promotion });
-          const array = chessRef.current.board();
-          if (perspective === 'black') {
-            array.reverse();
-            for (let row of array) {
-              row.reverse();
-            }
-          }
-          setBoardArray(array);
-          onMove?.(from, to, promotion);
-          
-          dispatch({ type: BOARD_ACTIONS.SET_LAST_MOVE, from, to });
-          dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
-        } else {
-          dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
-        }
-      } catch (e) {
-        console.warn('Move error:', e);
+        dispatch({ type: BOARD_ACTIONS.SET_LAST_MOVE, from, to });
+        dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
+      } else {
         dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
       }
+    } catch (e) {
+      console.warn('Move error:', e);
+      dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
     }
-  }, [onMove, perspective, skipValidation]);
+  }, [onMove, perspective]);
 
   // *** HANDLE PROMOTION SELECT ***
   const handlePromotionSelect = useCallback((piece) => {
@@ -479,20 +433,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
     // Handle blind square selection in blindfold mode
     if (blindfoldMode && onBlindSelect) {
       onBlindSelect(square);
-      return;
-    }
-
-    if (skipValidation) {
-      // In skipValidation mode, just toggle selection without validation
-      if (boardState.selectedSquare === square) {
-        dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
-      } else if (boardState.selectedSquare) {
-        // Attempt move
-        handleMove(boardState.selectedSquare, square);
-      } else {
-        // Select square
-        dispatch({ type: BOARD_ACTIONS.SELECT_SQUARE, square, validMoves: [] });
-      }
       return;
     }
 
@@ -551,7 +491,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
     } else {
       dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
     }
-  }, [isLoading, readonly, boardState.selectedSquare, handleMove, canSelectPiece, onRestrictedMoveAttempt, skipValidation, blindfoldMode, onBlindSelect]);
+  }, [isLoading, readonly, boardState.selectedSquare, handleMove, canSelectPiece, onRestrictedMoveAttempt, blindfoldMode, onBlindSelect]);
 
   // *** STABLE GESTURE HANDLERS ***
   const onGestureEvent = useCallback(({ nativeEvent }, square) => {
@@ -589,21 +529,16 @@ const SmoothChessboard = forwardRef((props, ref) => {
           ? `${String.fromCharCode(97 + toCol)}${8 - toRow}`
           : `${String.fromCharCode(104 - toCol)}${toRow + 1}`;
 
-        if (skipValidation || boardState.validMoves.includes(to)) {
-          if (!skipValidation) {
-            const currentChess = chessRef.current;
-            const piece = currentChess.get(boardState.selectedSquare);
-            if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
-              Vibration.vibrate(30);
-              dispatch({ 
-                type: BOARD_ACTIONS.SHOW_PROMOTION, 
-                from: boardState.selectedSquare, 
-                to 
-              });
-            } else {
-              Vibration.vibrate(50);
-              handleMove(boardState.selectedSquare, to);
-            }
+        if (boardState.validMoves.includes(to)) {
+          const currentChess = chessRef.current;
+          const piece = currentChess.get(boardState.selectedSquare);
+          if (piece?.type === 'p' && (toRow === 0 || toRow === 7)) {
+            Vibration.vibrate(30);
+            dispatch({ 
+              type: BOARD_ACTIONS.SHOW_PROMOTION, 
+              from: boardState.selectedSquare, 
+              to 
+            });
           } else {
             Vibration.vibrate(50);
             handleMove(boardState.selectedSquare, to);
@@ -616,7 +551,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
       }
       dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
     }
-  }, [isLoading, readonly, perspective, currentSquareSize, boardState.selectedSquare, boardState.validMoves, handleMove, canSelectPiece, onRestrictedMoveAttempt, skipValidation, blindfoldMode]);
+  }, [isLoading, readonly, perspective, currentSquareSize, boardState.selectedSquare, boardState.validMoves, handleMove, canSelectPiece, onRestrictedMoveAttempt, blindfoldMode]);
 
   // *** CREATE STABLE HANDLERS OBJECT ***
   const handlers = useMemo(() => ({
@@ -647,14 +582,14 @@ const SmoothChessboard = forwardRef((props, ref) => {
   }, [bestMove]);
 
   const movingPiece = useMemo(() => {
-    if (!bestMoveData || skipValidation) return null;
+    if (!bestMoveData) return null;
     try {
       const piece = chessRef.current?.get(bestMoveData.from);
       return piece ? piece.type : null;
     } catch {
       return null;
     }
-  }, [bestMoveData, skipValidation]);
+  }, [bestMoveData]);
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -770,7 +705,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
         </View>
       </View>
       
-      {boardState.showPromotion && !skipValidation && (
+      {boardState.showPromotion && (
         <PromotionOverlay 
           onSelect={handlePromotionSelect} 
           color={chessRef.current?.turn() || 'w'}
