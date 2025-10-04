@@ -1,3 +1,4 @@
+// src/components/Chessboard.js
 import React, { useState, useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useEffect, useReducer } from 'react';
 import { 
   View, 
@@ -13,7 +14,6 @@ import PromotionOverlay from './PromotionOverlay';
 import BoardLoadingSquare from './BoardLoadingSquare';
 import Arrow from './Arrow';
 
-// *** DEFAULT THEMES - for standalone usage ***
 const DEFAULT_BOARD_THEME = {
   light: '#EEEED2',
   dark: '#769656',
@@ -31,7 +31,6 @@ const DEFAULT_TEXT_COLORS = {
   subtitleText: '#6B7280'
 };
 
-// *** BOARD STATE REDUCER - Centralized state management ***
 const BOARD_ACTIONS = {
   SELECT_SQUARE: 'SELECT_SQUARE',
   CLEAR_SELECTION: 'CLEAR_SELECTION',
@@ -103,7 +102,33 @@ const boardReducer = (state, action) => {
   }
 };
 
-// *** LOADING BOARD ROW COMPONENT - No changes needed ***
+// Helper function to transform board array based on perspective
+const transformBoardArray = (originalArray, perspective) => {
+  const result = [];
+  
+  if (perspective === 'white') {
+    // For white: just copy as is
+    for (let i = 0; i < originalArray.length; i++) {
+      const row = [];
+      for (let j = 0; j < originalArray[i].length; j++) {
+        row.push(originalArray[i][j]);
+      }
+      result.push(row);
+    }
+  } else {
+    // For black: reverse rows and columns
+    for (let i = originalArray.length - 1; i >= 0; i--) {
+      const row = [];
+      for (let j = originalArray[i].length - 1; j >= 0; j--) {
+        row.push(originalArray[i][j]);
+      }
+      result.push(row);
+    }
+  }
+  
+  return result;
+};
+
 const LoadingBoardRow = React.memo(({ 
   rowIndex, 
   perspective, 
@@ -162,7 +187,6 @@ const LoadingBoardRow = React.memo(({
 
 LoadingBoardRow.displayName = 'LoadingBoardRow';
 
-// *** UPDATED OPTIMIZED BOARD ROW WITH SELECTIVE HIDING ***
 const OptimizedBoardRow = React.memo(({ 
   row, 
   rowIndex, 
@@ -173,12 +197,11 @@ const OptimizedBoardRow = React.memo(({
   currentSquareSize,
   boardTheme,
   readonly,
-  highlightedSquares, // Custom highlighted squares
-  blindfoldMode, // Shadow chess mode
-  hiddenSquares, // Which squares are hidden
-  onBlindSelect // Callback for blind square selection
+  highlightedSquares,
+  blindfoldMode,
+  hiddenSquares,
+  onBlindSelect
 }) => {
-  // Pre-calculate square notations once
   const squareNotations = useMemo(() => {
     return Array.from({ length: 8 }, (_, colIndex) => {
       return perspective === 'white'
@@ -192,10 +215,8 @@ const OptimizedBoardRow = React.memo(({
       {row.map((square, colIndex) => {
         const squareNotation = squareNotations[colIndex];
         
-        // Check for custom highlighting
         const customHighlight = highlightedSquares?.find(h => h.square === squareNotation);
         
-        // UPDATED: Check if square should be hidden - only if it has a piece
         const hasPiece = square !== null;
         const isHidden = blindfoldMode && hasPiece && (
           hiddenSquares === "all" || 
@@ -205,7 +226,7 @@ const OptimizedBoardRow = React.memo(({
         return (
           <Square
             key={`${squareNotation}`}
-            piece={square} // Always pass the piece (don't hide it here)
+            piece={square}
             row={rowIndex}
             col={colIndex}
             square={squareNotation}
@@ -222,9 +243,9 @@ const OptimizedBoardRow = React.memo(({
             currentSquareSize={currentSquareSize}
             boardTheme={boardTheme}
             readonly={readonly}
-            customHighlightColor={customHighlight?.color} // Custom highlighting
-            showToken={isHidden} // UPDATED: Only show token if square has piece AND should be hidden
-            onBlindSelect={onBlindSelect} // Blindfold selection callback
+            customHighlightColor={customHighlight?.color}
+            showToken={isHidden}
+            onBlindSelect={onBlindSelect}
           />
         );
       })}
@@ -234,7 +255,6 @@ const OptimizedBoardRow = React.memo(({
 
 OptimizedBoardRow.displayName = 'OptimizedBoardRow';
 
-// *** MAIN CHESSBOARD COMPONENT - OPTIMIZED ***
 const SmoothChessboard = forwardRef((props, ref) => {
   const {
     fen: initialFen,
@@ -256,19 +276,15 @@ const SmoothChessboard = forwardRef((props, ref) => {
     showArrows = true,
     showCoordinates = true,
     readonly = false,
-    
-    // *** EXISTING PROPS ***
-    highlightedSquares = [], // Array of {square: 'e4', color: '#FF0000'}
-    blindfoldMode = false, // Shadow chess mode
-    hiddenSquares = null, // Set of hidden squares for blindfold
-    onBlindSelect = null, // Callback when selecting blind square
+    highlightedSquares = [],
+    blindfoldMode = false,
+    hiddenSquares = null,
+    onBlindSelect = null,
   } = props;
 
-  // Use provided theme or defaults
   const activeBoardTheme = boardTheme || DEFAULT_BOARD_THEME;
   const activeTextColors = textColors || DEFAULT_TEXT_COLORS;
 
-  // *** USE REDUCER FOR BOARD STATE ***
   const [boardState, dispatch] = useReducer(boardReducer, {
     selectedSquare: null,
     validMoves: [],
@@ -280,35 +296,24 @@ const SmoothChessboard = forwardRef((props, ref) => {
     promotionTo: ''
   });
 
-  // *** CHESS INSTANCE IN REF - Support skipValidation mode ***
   const chessRef = useRef(new Chess(initialFen, {skipValidation: true}));
   
-  // *** BOARD ARRAY STATE - Support custom boards ***
   const [boardArray, setBoardArray] = useState(() => {
     if (chessRef.current) {
-      // Use chess.js board
-      const array = chessRef.current.board();
-      if (perspective === 'black') {
-        array.reverse();
-        for (let row of array) {
-          row.reverse();
-        }
-      }
-      return array;
+      const originalArray = chessRef.current.board();
+      return transformBoardArray(originalArray, perspective);
     } else {
-      // Empty board
       return Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => null));
     }
   });
 
-  // *** OTHER REFS ***
   const panValuesRef = useRef({});
   const lastMoveTimeRef = useRef(0);
   const boardDimensionsRef = useRef({ width: 0, height: 0 });
   const [currentSquareSize, setCurrentSquareSize] = useState(0);
   const prevFenRef = useRef(initialFen);
+  const prevPerspectiveRef = useRef(perspective);
 
-  // *** HANDLE BOARD LAYOUT ***
   const handleBoardLayout = useCallback((event) => {
     const { width, height } = event.nativeEvent.layout;
     boardDimensionsRef.current = { width, height };
@@ -316,29 +321,32 @@ const SmoothChessboard = forwardRef((props, ref) => {
     setCurrentSquareSize(size);
   }, []);
 
-  // *** UPDATE CHESS POSITION - Support skipValidation ***
   useEffect(() => {
-    if (initialFen && initialFen !== prevFenRef.current) {
-      // Normal chess.js mode
-      chessRef.current = new Chess(initialFen, {skipValidation: true});
-      const array = chessRef.current.board();
-      if (perspective === 'black') {
-        array.reverse();
-        for (let row of array) {
-          row.reverse();
-        }
+    const fenChanged = initialFen && initialFen !== prevFenRef.current;
+    const perspectiveChanged = perspective !== prevPerspectiveRef.current;
+    
+    if (fenChanged || perspectiveChanged) {
+      if (fenChanged) {
+        chessRef.current = new Chess(initialFen, {skipValidation: true});
       }
+      
+      const originalArray = chessRef.current.board();
+      const array = transformBoardArray(originalArray, perspective);
       setBoardArray(array);
-      dispatch({ 
-        type: BOARD_ACTIONS.RESET_STATE, 
-        lastMoveFrom: propLastMoveFrom,
-        lastMoveTo: propLastMoveTo
-      });
+      
+      if (fenChanged) {
+        dispatch({ 
+          type: BOARD_ACTIONS.RESET_STATE, 
+          lastMoveFrom: propLastMoveFrom,
+          lastMoveTo: propLastMoveTo
+        });
+      }
+      
       prevFenRef.current = initialFen;
+      prevPerspectiveRef.current = perspective;
     }
   }, [initialFen, perspective, propLastMoveFrom, propLastMoveTo]);
 
-  // *** UPDATE LAST MOVE FROM PROPS ***
   useEffect(() => {
     if (propLastMoveFrom !== boardState.lastMoveFrom || propLastMoveTo !== boardState.lastMoveTo) {
       dispatch({ 
@@ -349,7 +357,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }, [propLastMoveFrom, propLastMoveTo]);
 
-  // *** IMPERATIVE HANDLE ***
   useImperativeHandle(ref, () => ({
     highlight: (square) => {
       if (!square || typeof square !== 'string' || !/^[a-h][1-8]$/.test(square)) {
@@ -366,19 +373,13 @@ const SmoothChessboard = forwardRef((props, ref) => {
     },
     setFen: (fen) => {
       chessRef.current = new Chess(fen, {skipValidation: true});
-      const array = chessRef.current.board();
-      if (perspective === 'black') {
-        array.reverse();
-        for (let row of array) {
-          row.reverse();
-        }
-      }
+      const originalArray = chessRef.current.board();
+      const array = transformBoardArray(originalArray, perspective);
       setBoardArray(array);
       dispatch({ type: BOARD_ACTIONS.RESET_STATE });
     }
   }), [perspective]);
 
-  // *** OPTIMIZED HANDLE MOVE - Support skipValidation ***
   const handleMove = useCallback((from, to, promotion) => {
     const now = Date.now();
     if (now - lastMoveTimeRef.current < 150) return;
@@ -391,13 +392,8 @@ const SmoothChessboard = forwardRef((props, ref) => {
       
       if (move) {
         chessRef.current.move({ from, to, promotion });
-        const array = chessRef.current.board();
-        if (perspective === 'black') {
-          array.reverse();
-          for (let row of array) {
-            row.reverse();
-          }
-        }
+        const originalArray = chessRef.current.board();
+        const array = transformBoardArray(originalArray, perspective);
         setBoardArray(array);
         onMove?.(from, to, promotion);
         
@@ -412,13 +408,11 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }, [onMove, perspective]);
 
-  // *** HANDLE PROMOTION SELECT ***
   const handlePromotionSelect = useCallback((piece) => {
     handleMove(boardState.promotionFrom, boardState.promotionTo, piece);
     dispatch({ type: BOARD_ACTIONS.HIDE_PROMOTION });
   }, [handleMove, boardState.promotionFrom, boardState.promotionTo]);
 
-  // *** CHECK IF PIECE CAN BE SELECTED ***
   const canSelectPiece = useCallback((square) => {
     if (restrictToCircled && circledSquares && circledSquares.length > 0) {
       return circledSquares.includes(square);
@@ -426,31 +420,25 @@ const SmoothChessboard = forwardRef((props, ref) => {
     return true;
   }, [restrictToCircled, circledSquares]);
 
-  // *** OPTIMIZED SQUARE PRESS HANDLER - Support skipValidation and blindfold ***
   const onSquarePress = useCallback((square) => {
     if (isLoading || readonly) return;
 
-    // Handle blind square selection in blindfold mode
     if (blindfoldMode && onBlindSelect) {
       onBlindSelect(square);
       return;
     }
 
-    // Normal chess.js validation mode
     const currentChess = chessRef.current;
     const currentTurn = currentChess.turn();
     const clickedPiece = currentChess.get(square);
     const selectedPiece = boardState.selectedSquare ? currentChess.get(boardState.selectedSquare) : null;
 
-    // Toggle selection
     if (boardState.selectedSquare === square) {
       dispatch({ type: BOARD_ACTIONS.CLEAR_SELECTION });
       return;
     }
 
-    // We have a selected piece
     if (boardState.selectedSquare && selectedPiece) {
-      // Switching to another piece
       if (clickedPiece && clickedPiece.color === currentTurn) {
         if (!canSelectPiece(square)) {
           onRestrictedMoveAttempt?.(square, 'select');
@@ -462,7 +450,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
         return;
       }
       
-      // Check pawn promotion
       if (selectedPiece.type === 'p' && 
          ((selectedPiece.color === 'b' && boardState.selectedSquare[1] === '2' && square[1] === '1') || 
           (selectedPiece.color === 'w' && boardState.selectedSquare[1] === '7' && square[1] === '8'))) {
@@ -474,12 +461,10 @@ const SmoothChessboard = forwardRef((props, ref) => {
         return;
       }
       
-      // Attempt move
       handleMove(boardState.selectedSquare, square);
       return;
     }
 
-    // First piece selection
     if (clickedPiece && clickedPiece.color === currentTurn) {
       if (!canSelectPiece(square)) {
         onRestrictedMoveAttempt?.(square, 'select');
@@ -493,7 +478,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }, [isLoading, readonly, boardState.selectedSquare, handleMove, canSelectPiece, onRestrictedMoveAttempt, blindfoldMode, onBlindSelect]);
 
-  // *** STABLE GESTURE HANDLERS ***
   const onGestureEvent = useCallback(({ nativeEvent }, square) => {
     if (isLoading || readonly || !currentSquareSize) return;
     if (!canSelectPiece(square)) return;
@@ -553,14 +537,12 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }, [isLoading, readonly, perspective, currentSquareSize, boardState.selectedSquare, boardState.validMoves, handleMove, canSelectPiece, onRestrictedMoveAttempt, blindfoldMode]);
 
-  // *** CREATE STABLE HANDLERS OBJECT ***
   const handlers = useMemo(() => ({
     onSquarePress,
     onGestureEvent: (square) => (event) => onGestureEvent(event, square),
     onHandlerStateChange: (square) => (event) => onHandlerStateChange(event, square)
   }), [onSquarePress, onGestureEvent, onHandlerStateChange]);
 
-  // *** MEMOIZED VALUES ***
   const files = useMemo(() => 
     perspective === 'white' 
       ? ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] 
@@ -597,7 +579,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
         <View style={styles.outerContainer}>
           <View style={styles.boardWithLabels}>
             <View style={styles.boardRowContainer}>
-              {/* RANK LABELS */}
               {showCoordinates && (
                 <View style={styles.rankLabelsWrapper}>
                   <View style={styles.rankLabels}>
@@ -612,14 +593,12 @@ const SmoothChessboard = forwardRef((props, ref) => {
                 </View>
               )}
               
-              {/* BOARD */}
               <View style={styles.boardWrapper}>
                 <View 
                   style={styles.boardContainer}
                   onLayout={handleBoardLayout}
                 >
                   <View style={styles.board}>
-                    {/* Board Content */}
                     {isLoading ? (
                       Array.from({ length: 8 }, (_, rowIndex) => (
                         <LoadingBoardRow
@@ -643,15 +622,14 @@ const SmoothChessboard = forwardRef((props, ref) => {
                           currentSquareSize={currentSquareSize}
                           boardTheme={activeBoardTheme}
                           readonly={readonly}
-                          highlightedSquares={highlightedSquares} // Custom highlights
-                          blindfoldMode={blindfoldMode} // Blindfold mode
-                          hiddenSquares={hiddenSquares} // Hidden squares
-                          onBlindSelect={onBlindSelect} // Blind selection callback
+                          highlightedSquares={highlightedSquares}
+                          blindfoldMode={blindfoldMode}
+                          hiddenSquares={hiddenSquares}
+                          onBlindSelect={onBlindSelect}
                         />
                       ))
                     )}
 
-                    {/* Arrow overlays */}
                     {!isLoading && showArrows && currentSquareSize > 0 && boardDimensionsRef.current.width > 0 && (
                       <>
                         {arrows?.map((arrow, index) => (
@@ -686,7 +664,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
               </View>
             </View>
             
-            {/* FILE LABELS */}
             {showCoordinates && (
               <View style={styles.fileLabelsRow}>
                 <View style={styles.fileLabelsOffset} />
@@ -720,7 +697,6 @@ const SmoothChessboard = forwardRef((props, ref) => {
 
 SmoothChessboard.displayName = 'SmoothChessboard';
 
-// *** WRAPPER COMPONENT ***
 const SmoothChessboardWrapper = React.memo(forwardRef((props, ref) => {
   const defaultBoardTheme = {
     light: '#EEEED2',
