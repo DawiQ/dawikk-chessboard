@@ -573,6 +573,54 @@ const SmoothChessboard = forwardRef((props, ref) => {
     }
   }, [bestMoveData]);
 
+  // *** OPTIMIZED ARROWS RENDERING ***
+  const renderedArrows = useMemo(() => {
+    if (isLoading || !showArrows || currentSquareSize <= 0 || boardDimensionsRef.current.width <= 0) {
+      return null;
+    }
+
+    const arrowComponents = [];
+
+    // Render user arrows
+    if (arrows?.length > 0) {
+      arrows.forEach((arrow) => {
+        // Use stable key based on arrow properties
+        const key = `${arrow.from}-${arrow.to}-${arrow.color || 'default'}`;
+        arrowComponents.push(
+          <Arrow
+            key={key}
+            from={arrow.from}
+            to={arrow.to}
+            squareSize={currentSquareSize}
+            boardSize={boardDimensionsRef.current.width}
+            perspective={perspective}
+            piece={arrow.piece || null}
+            opacity={arrow.opacity || 0.8}
+            color={arrow.color || 'rgba(131, 169, 120, 0.8)'}
+          />
+        );
+      });
+    }
+
+    // Render best move arrow
+    if (bestMoveData) {
+      arrowComponents.push(
+        <Arrow
+          key="best-move"
+          from={bestMoveData.from}
+          to={bestMoveData.to}
+          squareSize={currentSquareSize}
+          boardSize={boardDimensionsRef.current.width}
+          perspective={perspective}
+          piece={movingPiece}
+          opacity={0.8}
+        />
+      );
+    }
+
+    return arrowComponents.length > 0 ? arrowComponents : null;
+  }, [isLoading, showArrows, currentSquareSize, arrows, bestMoveData, movingPiece, perspective]);
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.chessboardWrapper}>
@@ -630,35 +678,7 @@ const SmoothChessboard = forwardRef((props, ref) => {
                       ))
                     )}
 
-                    {!isLoading && showArrows && currentSquareSize > 0 && boardDimensionsRef.current.width > 0 && (
-                      <>
-                        {arrows?.map((arrow, index) => (
-                          <Arrow
-                            key={`arrow-${index}`}
-                            from={arrow.from}
-                            to={arrow.to}
-                            squareSize={currentSquareSize}
-                            boardSize={boardDimensionsRef.current.width}
-                            perspective={perspective}
-                            piece={arrow.piece || null}
-                            opacity={arrow.opacity || 0.8}
-                            color={arrow.color || 'rgba(131, 169, 120, 0.8)'}
-                          />
-                        ))}
-                        {bestMoveData && (
-                          <Arrow
-                            key="best-move"
-                            from={bestMoveData.from}
-                            to={bestMoveData.to}
-                            squareSize={currentSquareSize}
-                            boardSize={boardDimensionsRef.current.width}
-                            perspective={perspective}
-                            piece={movingPiece}
-                            opacity={0.8}
-                          />
-                        )}
-                      </>
-                    )}
+                    {renderedArrows}
                   </View>
                 </View>
               </View>
