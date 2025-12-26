@@ -1,5 +1,5 @@
-import React, { memo, useMemo, useCallback } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import React, { memo, useMemo, useCallback, useEffect, useRef } from 'react';
+import { View, TouchableOpacity, StyleSheet, Text, Animated } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // *** DEFAULT COLORS - for standalone usage ***
@@ -54,10 +54,10 @@ const PromotionOption = memo(({
       style={optionStyle}
       activeOpacity={0.8}
     >
-      <MaterialCommunityIcons 
-        name={pieceInfo.icon} 
-        size={40} 
-        color={iconColor} 
+      <MaterialCommunityIcons
+        name={pieceInfo.icon}
+        size={48}
+        color={iconColor}
       />
       <Text style={[styles.optionLabel, { color: labelColor }]}>
         {pieceInfo.label}
@@ -69,19 +69,40 @@ const PromotionOption = memo(({
 PromotionOption.displayName = 'PromotionOption';
 
 // *** MAIN COMPONENT - STANDALONE VERSION ***
-const PromotionOverlay = memo(({ 
-  onSelect, 
+const PromotionOverlay = memo(({
+  onSelect,
   color,
   // 🎯 NEW PROPS - Accept colors directly
   colors = null,
   textColors = null,
   backgroundColors = null
 }) => {
-  
+
   // 🎯 USE PROVIDED COLORS OR DEFAULTS
   const activeColors = colors || DEFAULT_COLORS;
   const activeTextColors = textColors || DEFAULT_COLORS;
   const activeBackgroundColors = backgroundColors || DEFAULT_COLORS;
+
+  // *** ANIMATION VALUES ***
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  // *** ENTRANCE ANIMATION ***
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
 
   // *** MEMOIZED OVERLAY BACKGROUND ***
   const overlayBackground = useMemo(() => 'rgba(0, 0, 0, 0.8)', []);
@@ -126,23 +147,23 @@ const PromotionOverlay = memo(({
   }, [color, onSelect, activeColors.borderPrimary]);
 
   return (
-    <View 
-      style={[styles.overlay, { backgroundColor: overlayBackground }]}
+    <Animated.View
+      style={[styles.overlay, { backgroundColor: overlayBackground, opacity: opacityAnim }]}
     >
-      <View style={promotionCardStyle}>
+      <Animated.View style={[promotionCardStyle, { transform: [{ scale: scaleAnim }] }]}>
         <Text style={titleTextStyle}>
           Choose promotion
         </Text>
-        
+
         <View style={styles.optionsContainer}>
           {renderOptions}
         </View>
-        
+
         <Text style={instructionTextStyle}>
           Select the piece to promote your pawn to
         </Text>
-      </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 }, (prevProps, nextProps) => {
   // *** CUSTOM EQUALITY FUNCTION ***
@@ -168,16 +189,11 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   promotionCard: {
-    borderRadius: 16,
-    padding: 20,
-    width: '85%',
-    maxWidth: 350,
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 380,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   titleText: {
     fontSize: 18,
@@ -193,17 +209,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   option: {
-    padding: 12,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 80,
-    height: 80,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
+    width: 90,
+    height: 90,
   },
   optionLabel: {
     marginTop: 6,
